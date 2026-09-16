@@ -133,6 +133,10 @@
     position:absolute; top:8px; left:10px; right:10px; font-size:.72rem; font-weight:700;
     color:var(--accent-gold); text-shadow:0 0 6px rgba(0,0,0,.8); letter-spacing:.3px; pointer-events:none;
   }
+  .viz-load-status{
+    position:absolute; bottom:24px; left:0; right:0; text-align:center; font-size:.65rem;
+    color:rgba(255,215,0,.75); letter-spacing:.3px; pointer-events:none;
+  }
 
   /* Top: A2 Lý */
   .top-ly{ font-style:italic; color:#a5d6a7; text-align:center; font-size:clamp(.85rem,1.8vw,.95rem); line-height:1.45; margin:2px 0 10px 0; padding:0 4px; opacity:.95; }
@@ -457,6 +461,7 @@ function handleFilterSort(){
         <div class="viz-pane" id="viz-${i}">
           <span class="viz-label">${f.c5Name || 'Thủ Nhãn'}</span>
           <div class="viz-canvas-holder"></div>
+          <span class="viz-load-status" id="viz-status-${i}"></span>
           <span class="viz-hint">Kéo để xoay • Tự động xoay</span>
         </div>
         <div class="instr-pane">
@@ -485,7 +490,8 @@ function handleFilterSort(){
     app.appendChild(cardEl);
 
     const vizPane = cardEl.querySelector(`#viz-${i} .viz-canvas-holder`);
-    const vizInstance = initCardViz(vizPane, f);
+    const statusEl = cardEl.querySelector(`#viz-status-${i}`);
+    const vizInstance = initCardViz(vizPane, f, statusEl);
     activeVizInstances.push(vizInstance);
   });
 }
@@ -524,7 +530,73 @@ function buildBuddhaStatue(sharedMat){
 
 const sharedGLTFLoader = ('THREE' in window && THREE.GLTFLoader) ? new THREE.GLTFLoader() : null;
 
-function initCardViz(container, fields){
+/* -------------------------------------------------------------------------
+   SHARED BUDDHA STATUE MODEL LOADER
+   Tries, in order:
+     1. The local .glb sitting in the SAME FOLDER as this HTML file
+        (only works when the page is served via http(s):// — NOT via
+        double-clicking the file directly, since browsers block local
+        binary fetches under the file:// origin).
+     2. Two different Google Drive "direct download" URL patterns for your
+        shared file (best-effort only — Drive frequently blocks this for
+        larger binaries with a virus-scan HTML page instead of raw bytes,
+        and may not send CORS headers needed by the loader).
+   If every candidate fails, each card keeps the lightweight procedural
+   placeholder statue so the visualization is never left blank.
+   ------------------------------------------------------------------------- */
+const BUDDHA_LOCAL_FILENAME = 'glass+buddha+statue+3d+model.glb';
+const BUDDHA_DRIVE_FILE_ID  = '1oXXorykDJrFvKstX8g_npeAenJtpONtT';
+const BUDDHA_MODEL_CANDIDATES = [
+  BUDDHA_LOCAL_FILENAME,
+  `https://drive.google.com/uc?export=download&id=${BUDDHA_DRIVE_FILE_ID}`,
+  `https://drive.usercontent.google.com/download?id=${BUDDHA_DRIVE_FILE_ID}&export=download&confirm=t`
+];
+
+// Tune these three if the loaded GLB appears mis-scaled, floating, or sideways.
+const BUDDHA_TARGET_HEIGHT    = 1.55;      // desired height (scene units) of the standing/seated figure
+const BUDDHA_GROUND_Z         = -0.35;     // where the base of the statue should sit
+const BUDDHA_EXTRA_ROTATION_X = Math.PI/2; // most GLB exports are Y-up; this scene is Z-up
+
+let buddhaModelLoadPromise = null;
+function loadSharedBuddhaModel(){
+  if (buddhaModelLoadPromise) return buddhaModelLoadPromise;
+  if (!sharedGLTFLoader) { buddhaModelLoadPromise = Promise.reject(new Error('GLTFLoader unavailable')); return buddhaModelLoadPromise; }
+
+  const tryIndex = (idx) => {
+    if (idx >= BUDDHA_MODEL_CANDIDATES.length) return Promise.reject(new Error('All Buddha model sources failed to load'));
+    const url = BUDDHA_MODEL_CANDIDATES[idx];
+    return new Promise((resolve, reject) => {
+      sharedGLTFLoader.load(
+        url,
+        (gltf) => resolve(gltf.scene),
+        undefined,
+        (err) => { console.warn(`Buddha model source failed: ${url}`, err); reject(err); }
+      );
+    }).catch(() => tryIndex(idx + 1));
+  };
+
+  buddhaModelLoadPromise = tryIndex(0);
+  return buddhaModelLoadPromise;
+}
+
+function fitBuddhaModelToScene(object3D){
+  object3D.rotation.x = BUDDHA_EXTRA_ROTATION_X;
+  object3D.updateMatrixWorld(true);
+  let box = new THREE.Box3().setFromObject(object3D);
+  let size = new THREE.Vector3(); box.getSize(size);
+  const verticalExtent = size.z || size.y || 1;
+  const scale = BUDDHA_TARGET_HEIGHT / (verticalExtent || 1);
+  object3D.scale.setScalar(scale);
+  object3D.updateMatrixWorld(true);
+  box = new THREE.Box3().setFromObject(object3D);
+  const center = new THREE.Vector3(); box.getCenter(center);
+  object3D.position.x -= center.x;
+  object3D.position.y -= center.y;
+  object3D.position.z -= box.min.z;
+  object3D.position.z += BUDDHA_GROUND_Z;
+}
+
+function initCardViz(container, fields, statusEl){
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x03060d, 0.09);
 
@@ -557,8 +629,24 @@ function initCardViz(container, fields){
 
   const rootGroup = new THREE.Group();
   rootGroup.rotation.z = Math.PI / 2;
-  const buddha = buildBuddhaStatue(crystalMat);
-  rootGroup.add(buddha);
+
+  // Show a lightweight procedural placeholder immediately so the card is
+  // never blank, then swap in your real glass Buddha statue GLB (local file
+  // first, Google Drive as best-effort fallback) once it finishes loading.
+  const placeholderBuddha = buildBuddhaStatue(crystalMat);
+  rootGroup.add(placeholderBuddha);
+  if (statusEl) statusEl.textContent = 'Đang tải mô hình Phật 3D…';
+
+  loadSharedBuddhaModel().then((sceneRoot) => {
+    const modelInstance = sceneRoot.clone(true);
+    fitBuddhaModelToScene(modelInstance);
+    rootGroup.add(modelInstance);
+    rootGroup.remove(placeholderBuddha);
+    if (statusEl) statusEl.textContent = '';
+  }).catch((err) => {
+    console.warn('Buddha GLB model could not be loaded from any source; keeping procedural placeholder.', err);
+    if (statusEl) statusEl.textContent = 'Không tải được mô hình GLB — dùng hình mẫu tạm thời';
+  });
 
   // Thủ Nhãn node: position from Visualization Coordinate, shape from Model, color from Color
   let nodeColor;
@@ -586,8 +674,9 @@ function initCardViz(container, fields){
 
   scene.add(rootGroup);
 
-  // Optional: load a custom GLB model referenced in the Visualization-Model column,
-  // replacing the placeholder node shape once it is ready.
+  // Optional: if the row's own Visualization-Model column points to a
+  // different .glb/.gltf, load that as the dharma-object node's shape,
+  // replacing the placeholder primitive once ready.
   if (sharedGLTFLoader && /\.(glb|gltf)(\?.*)?$/i.test(fields.vizModel || '')) {
     sharedGLTFLoader.load(fields.vizModel, (gltf) => {
       const loaded = gltf.scene;
