@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Pháp Tu Hoa Nghiêm</title>
+
+<!-- Google Fonts: Vietnamese-friendly Noto Sans -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet">
+
+<!-- Three.js (for the per-card mini Buddha visualization) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+<style>
+  :root{
+    --bg-color:#0b0c10;
+    --card-bg:#151722;
+    --card-border:rgba(255,255,255,0.08);
+    --viz-bg-a:#081122;
+    --viz-bg-b:#03060d;
+    --text-purple:#ce93d8;
+    --text-gold:#ffecb3;
+    --text-gold-bright:#ffe082;
+    --text-green:#81c784;
+    --text-light-green:#c8e6c9;
+    --text-peach-soft:#ffccbc;
+    --text-orange-bold:#ffab91;
+    --text-muted:#90a4ae;
+    --accent-gold:#ffd700;
+    --accent-cyan:#00e5ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{
+    background-color:var(--bg-color);
+    color:#eceff1;
+    font-family:'Noto Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    padding-bottom:60px;
+  }
+
+  /* ================= HEADER / FILTER BAR ================= */
+  header{
+    position:sticky; top:0; z-index:100;
+    background:rgba(11,12,16,0.96);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    padding:10px 14px;
+    border-bottom:1px solid var(--card-border);
+    box-shadow:0 4px 20px rgba(0,0,0,0.5);
+    transition:transform .3s cubic-bezier(.25,1,.5,1), opacity .3s ease;
+  }
+  header.header-hidden{ transform:translateY(-105%); opacity:0; pointer-events:none; }
+  .header-container{ max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:8px; }
+  .header-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .app-title{ font-size:1.05rem; font-weight:800; color:var(--text-gold); letter-spacing:.3px; white-space:nowrap; }
+  .header-actions{ display:flex; align-items:center; gap:8px; }
+  .counter-pill{
+    font-size:.8rem; background:rgba(255,236,179,.15); color:var(--text-gold);
+    border:1px solid rgba(255,236,179,.28); padding:3px 10px; border-radius:14px; font-weight:700; white-space:nowrap;
+  }
+  .sync-dot{ width:9px; height:9px; border-radius:50%; background:#ffd700; box-shadow:0 0 8px #ffd700; display:inline-block; }
+  .sync-pill{ display:flex; align-items:center; gap:6px; font-size:.78rem; color:var(--text-muted); }
+  .toggle-btn{
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); color:var(--text-gold);
+    width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:.9rem;
+  }
+  .controls-grid{ display:grid; grid-template-columns:1fr; gap:8px; }
+  .controls-grid.collapsed{ display:none; }
+  @media (min-width:680px){
+    .header-container{ flex-direction:row; align-items:center; justify-content:space-between; }
+    .controls-grid{ grid-template-columns:1.2fr 1fr; flex:1; max-width:680px; margin-left:16px; }
+  }
+  .custom-select,.search-box{
+    width:100%; background:#1e202c; color:#fff; border:1px solid rgba(255,255,255,.15);
+    border-radius:10px; padding:9px 12px; font-size:.92rem; outline:none; transition:border-color .2s ease;
+  }
+  .custom-select:focus,.search-box:focus{ border-color:var(--text-gold); }
+  .search-box::placeholder{ color:#78909c; }
+
+  #quickFilterBtn{
+    position:fixed; top:14px; right:14px; z-index:99;
+    background:rgba(30,32,44,.9); border:1px solid rgba(255,236,179,.3); color:var(--text-gold);
+    padding:6px 12px; border-radius:20px; font-size:.82rem; font-weight:700;
+    box-shadow:0 4px 12px rgba(0,0,0,.4); cursor:pointer; display:none; backdrop-filter:blur(8px);
+  }
+
+  main{ width:100%; max-width:1100px; margin:0 auto; padding:12px 10px; }
+  .status-box{ text-align:center; padding:70px 16px; color:var(--text-muted); font-size:.95rem; }
+  .spinner{ width:34px; height:34px; border:3px solid rgba(206,147,216,.2); border-top-color:var(--text-purple); border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 16px auto; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ================= CARD STRUCTURE ================= */
+  .card{
+    background:var(--card-bg); border-radius:18px; border:1px solid var(--card-border);
+    box-shadow:0 6px 20px rgba(0,0,0,.4); margin-bottom:22px; overflow:hidden;
+  }
+  .full-width-pill{
+    display:block; width:calc(100% - 28px); margin:14px auto 0 auto; text-align:center;
+    font-size:clamp(.85rem,2.5vw,1rem); color:var(--text-gold); background:rgba(255,236,179,.10);
+    border:1px solid rgba(255,236,179,.26); padding:7px 14px; border-radius:24px; font-weight:700;
+    letter-spacing:.3px; word-break:break-word;
+  }
+
+  /* Portrait (default): viz on TOP, instructions BELOW */
+  .card-split{ display:flex; flex-direction:column; width:100%; }
+  .viz-pane{
+    position:relative; width:100%; height:300px;
+    background:radial-gradient(circle at 50% 40%, var(--viz-bg-a) 0%, var(--viz-bg-b) 70%, #010206 100%);
+    touch-action:none;
+  }
+  .instr-pane{ width:100%; padding:16px 16px 22px 16px; display:flex; flex-direction:column; }
+
+  /* Landscape: viz on LEFT, instructions on RIGHT */
+  @media (orientation:landscape){
+    .card-split{ flex-direction:row; align-items:stretch; }
+    .full-width-pill{ margin:14px auto 0 auto; }
+    .viz-pane{ width:44%; height:auto; min-height:420px; flex-shrink:0; }
+    .instr-pane{ width:56%; border-left:1px solid rgba(255,255,255,.06); }
+  }
+  @media (orientation:landscape) and (max-height:520px){
+    .viz-pane{ min-height:320px; }
+  }
+
+  .viz-canvas-holder{ position:absolute; inset:0; }
+  .viz-canvas-holder canvas{ display:block; width:100%; height:100%; }
+  .viz-hint{
+    position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:.68rem;
+    color:rgba(255,255,255,.45); letter-spacing:.4px; pointer-events:none;
+  }
+  .viz-label{
+    position:absolute; top:8px; left:10px; right:10px; font-size:.72rem; font-weight:700;
+    color:var(--accent-gold); text-shadow:0 0 6px rgba(0,0,0,.8); letter-spacing:.3px; pointer-events:none;
+  }
+
+  /* Top: A2 Lý */
+  .top-ly{ font-style:italic; color:#a5d6a7; text-align:center; font-size:clamp(.85rem,1.8vw,.95rem); line-height:1.45; margin:2px 0 10px 0; padding:0 4px; opacity:.95; }
+
+  /* Title: C5 Thủ Nhãn – C1 Tên CTT – C4 image */
+  .card-label{ color:var(--text-purple); text-align:center; font-size:clamp(1.2rem,3vw,1.55rem); font-weight:700; line-height:1.3; margin:4px 0 6px 0; word-break:break-word; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; }
+  .separator{ color:#b0bec5; font-weight:300; }
+  .c4-inline-img{ height:1.5em; max-height:34px; width:auto; vertical-align:middle; border-radius:6px; background:rgba(255,255,255,.05); padding:2px; filter:drop-shadow(0 0 6px rgba(255,215,0,.45)); }
+
+  /* A1 Sự already in pill; A3 Khai Dẫn / A5 Trung Dẫn / A9 Kết Dẫn share this lesser style */
+  .lesser-dan{ color:var(--text-peach-soft); text-align:center; font-weight:400; font-style:italic; font-size:clamp(.88rem,1.8vw,1.02rem); line-height:1.45; margin:10px 4px; padding:0 4px; opacity:.92; }
+  .lesser-dan.trung-dan{ color:#b39ddb; }
+  .lesser-dan.ket-dan{ color:#80cbc4; }
+
+  .chu-header{ color:var(--text-gold-bright); text-align:center; font-weight:800; font-size:clamp(1.05rem,2.3vw,1.3rem); margin:14px 0 8px 0; letter-spacing:.3px; }
+
+  .data-container{ display:flex; justify-content:space-between; gap:10px; margin:8px 0 14px 0; }
+  .chu-col{ flex:1; color:#fff3d0; text-align:center; font-weight:700; font-size:clamp(.9rem,2vw,1.08rem); line-height:1.35; background:rgba(255,236,179,.08); padding:10px 8px; border-radius:10px; border:1.5px solid rgba(255,236,179,.22); box-shadow:0 2px 8px rgba(0,0,0,.2); word-break:break-word; }
+
+  .chu-KD-bold{ color:var(--text-orange-bold); text-align:center; font-weight:800; font-size:clamp(1.05rem,2.3vw,1.28rem); line-height:1.35; margin:12px 0 8px 0; padding:8px 10px; background:rgba(255,171,145,.08); border-radius:8px; border:1px solid rgba(255,171,145,.22); word-break:break-word; }
+
+  .KD-bold{ color:var(--text-light-green); text-align:center; font-weight:800; font-size:clamp(1.08rem,2.3vw,1.3rem); line-height:1.35; margin:10px 0 10px 0; padding:8px 10px; background:rgba(200,230,201,.08); border-radius:8px; border:1px solid rgba(200,230,201,.22); word-break:break-word; }
+</style>
+</head>
+<body>
+
+<button id="quickFilterBtn" onclick="restoreHeader()">⚙️ Bộ lọc PT.xxx & Tìm kiếm</button>
+
+<header id="mainHeader">
+  <div class="header-container">
+    <div class="header-top">
+      <span class="app-title">Pháp Tu Hoa Nghiêm</span>
+      <div class="header-actions">
+        <span class="sync-pill"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Đang kết nối…</span></span>
+        <span class="counter-pill" id="counterPill">0 / 0</span>
+        <button class="toggle-btn" id="toggleCollapseBtn" onclick="toggleControlsCollapse()" title="Ẩn/Hiện thanh tìm kiếm">▼</button>
+      </div>
+    </div>
+    <div class="controls-grid" id="controlsGrid">
+      <select id="ptSelect" class="custom-select" onchange="handleFilterSort()">
+        <option value="">Đang tải danh sách PT.xxx...</option>
+      </select>
+      <input type="search" id="searchInput" class="search-box" placeholder="🔍 Tìm theo tên, chú, pháp bảo..." oninput="handleFilterSort()" />
+    </div>
+  </div>
+</header>
+
+<main id="app">
+  <div class="status-box" id="statusBox">
+    <div class="spinner"></div>
+    Đang kết nối dữ liệu Google Sheet...
+  </div>
+</main>
+
+<script>
+/* =========================================================================
+   CONFIGURATION — change these two values to point at your own Google Sheet.
+   The sheet MUST be shared as "Anyone with the link -> Viewer".
+   ========================================================================= */
+const SHEET_ID = '1Gvl7SNXhVSrKBJiPgt78T2opWckb5OO59S-q_4S6Y7w';
+const TAB_NAME = 'WBSID';
+const GVIZ_URL       = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(TAB_NAME)}`;
+const GVIZ_JSONP_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizData&sheet=${encodeURIComponent(TAB_NAME)}`;
+
+let allRows = [];        // parsed sheet rows -> field objects
+let filterOptions = [];  // { key: 'PT.xxx', label, count }
+let colHeaders = [];
+
+/* ================= HEADER AUTO-HIDE ON SCROLL ================= */
+let lastScrollY = window.scrollY;
+const headerEl = document.getElementById('mainHeader');
+const quickBtn = document.getElementById('quickFilterBtn');
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  if (y > 80) {
+    if (y > lastScrollY + 6) { headerEl.classList.add('header-hidden'); quickBtn.style.display = 'block'; }
+    else if (y < lastScrollY - 6) { headerEl.classList.remove('header-hidden'); quickBtn.style.display = 'none'; }
+  } else { headerEl.classList.remove('header-hidden'); quickBtn.style.display = 'none'; }
+  lastScrollY = y;
+}, { passive:true });
+function restoreHeader(){ headerEl.classList.remove('header-hidden'); quickBtn.style.display='none'; window.scrollTo({top:0,behavior:'smooth'}); }
+function toggleControlsCollapse(){
+  const grid = document.getElementById('controlsGrid');
+  const btn = document.getElementById('toggleCollapseBtn');
+  if (grid.classList.contains('collapsed')) { grid.classList.remove('collapsed'); btn.textContent='▼'; }
+  else { grid.classList.add('collapsed'); btn.textContent='▲'; }
+}
+
+/* ================= HELPERS ================= */
+function cleanText(v){
+  if (v===undefined || v===null) return '';
+  const s = String(v).trim();
+  if (s==='' || s==='0' || s.toLowerCase()==='null' || s.toLowerCase()==='undefined') return '';
+  return s;
+}
+function findValue(row, pattern){
+  for (const [k,v] of Object.entries(row)) {
+    if (pattern.test(k)) { const c = cleanText(v); if (c) return c; }
+  }
+  return '';
+}
+function findExact(row, pattern){
+  // stricter match used to separate "A4 Hành" from "A4 Hành A/B"
+  for (const [k,v] of Object.entries(row)) {
+    if (pattern.test(k.trim())) { const c = cleanText(v); if (c) return c; }
+  }
+  return '';
+}
+function naturalCompare(a,b){ return String(a).localeCompare(String(b), undefined, {numeric:true, sensitivity:'base'}); }
+
+function getDriveDirectImageUrl(urlOrId){
+  if (!urlOrId) return '';
+  const str = String(urlOrId).trim();
+  if (!str || str.startsWith('#') || str.length<5) return '';
+  if (/^[a-zA-Z0-9_-]{25,}$/.test(str)) return `https://drive.google.com/thumbnail?id=${str}&sz=w800`;
+  const idMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || str.match(/id=([a-zA-Z0-9_-]+)/) ||
+                  str.match(/\/open\?id=([a-zA-Z0-9_-]+)/) || str.match(/\/uc\?id=([a-zA-Z0-9_-]+)/);
+  if (idMatch) return `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w800`;
+  if (str.startsWith('http://') || str.startsWith('https://')) return str;
+  return '';
+}
+
+/* Robust "x,y,z" coordinate parser (handles decimal commas, semicolons, brackets) */
+function parseCoordinates(coordStr){
+  if (!coordStr) return [0,0,0];
+  let cleaned = String(coordStr)
+    .replace(/[\u2212\u2010\u2011\u2012\u2013\u2014\u2015\uFE63\uFF0D]/g,'-')
+    .replace(/[()[\]{}'"]/g,'').trim();
+  if (cleaned.includes(';')) {
+    const nums = cleaned.split(';').map(p => { const m=p.replace(',', '.').match(/-?\d+(?:\.\d+)?/); return m?parseFloat(m[0]):null; }).filter(n=>n!==null);
+    if (nums.length>=3) return nums.slice(0,3);
+  }
+  if (cleaned.includes('.')) {
+    const m = cleaned.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi);
+    if (m && m.length>=3) return [parseFloat(m[0]),parseFloat(m[1]),parseFloat(m[2])];
+  }
+  const decFixed = cleaned.replace(/(\d),(\d)/g,'$1.$2');
+  const decM = decFixed.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi);
+  if (decM && decM.length>=3) return [parseFloat(decM[0]),parseFloat(decM[1]),parseFloat(decM[2])];
+  const intM = cleaned.match(/-?\d+/g);
+  if (intM && intM.length>=3) return [parseFloat(intM[0]),parseFloat(intM[1]),parseFloat(intM[2])];
+  return [0,0,0];
+}
+
+/* =========================================================================
+   1. GOOGLE SHEET INGESTION (fetch first, JSONP fallback)
+   ========================================================================= */
+function setSync(label, color){
+  document.getElementById('syncLabel').textContent = label;
+  document.getElementById('syncDot').style.background = color;
+  document.getElementById('syncDot').style.boxShadow = `0 0 8px ${color}`;
+}
+
+async function initSheetData(){
+  try {
+    const res = await fetch(GVIZ_URL);
+    if (!res.ok) throw new Error('fetch failed');
+    const text = await res.text();
+    const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}')+1);
+    const json = JSON.parse(jsonStr);
+    onGvizLoaded(json);
+  } catch (err) {
+    // Fallback: JSONP (works even when fetch is blocked by CORS policies)
+    setSync('Đang thử kết nối JSONP…', '#ffd700');
+    window.handleGvizData = function(json){ onGvizLoaded(json); };
+    const script = document.createElement('script');
+    script.src = GVIZ_JSONP_URL;
+    script.onerror = function(){
+      setSync('Không thể kết nối', '#ef5350');
+      document.getElementById('statusBox').innerHTML = `
+        <p style="color:#ef5350; font-weight:700;">Không thể tải dữ liệu từ Google Sheet</p>
+        <p style="font-size:.85rem; margin-top:8px;">Vui lòng kiểm tra quyền chia sẻ công khai của file (Anyone with the link — Viewer).</p>`;
+    };
+    document.head.appendChild(script);
+  }
+}
+
+function onGvizLoaded(json){
+  if (!json || !json.table || !json.table.rows) {
+    setSync('Không có dữ liệu', '#ef5350');
+    return;
+  }
+  let headers = (json.table.cols || []).map(c => (c && c.label) ? c.label.trim() : '');
+  let startRow = 0;
+  if (json.table.rows.length > 0) {
+    const row0 = json.table.rows[0].c || [];
+    const candidateLabels = row0.map(c => (c && (c.f || c.v)) ? String(c.f || c.v).trim() : '');
+    if (candidateLabels.some(l => /WBSID|PT\.|Thủ Nhãn|STT/i.test(l))) { headers = candidateLabels; startRow = 1; }
+  }
+  headers = headers.map((h,i) => h || `COL_${i}`);
+  colHeaders = headers;
+
+  allRows = [];
+  for (let r = startRow; r < json.table.rows.length; r++) {
+    const rowObj = {};
+    const cells = json.table.rows[r].c || [];
+    cells.forEach((cell, idx) => {
+      const h = headers[idx] || `COL_${idx}`;
+      const val = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : (cell.v !== null && cell.v !== undefined ? cell.v : '')) : '';
+      rowObj[h] = val;
+      rowObj[`idx_${idx}`] = val;
+    });
+    const check = findValue(rowObj, /Thủ Nhãn|WBSID|PT\./i) || rowObj['idx_0'] || rowObj['idx_1'];
+    if (cleanText(check)) allRows.push(rowObj);
+  }
+
+  discoverPTFilters(headers);
+  buildDropdown();
+  handleFilterSort();
+  setSync('Đã đồng bộ Google Sheet', '#00ff88');
+}
+
+/* Narrow the filter selection exclusively to headers starting with "PT." */
+function discoverPTFilters(headersList){
+  filterOptions = [];
+  const seen = new Set();
+  headersList.forEach((h) => {
+    const headerName = (h||'').trim();
+    if (/^PT\./i.test(headerName) && !seen.has(headerName)) {
+      const validRows = allRows.filter(r => cleanText(r[headerName]) !== '');
+      if (validRows.length > 0) {
+        seen.add(headerName);
+        filterOptions.push({ key: headerName, label: headerName, count: validRows.length });
+      }
+    }
+  });
+}
+
+function buildDropdown(){
+  const select = document.getElementById('ptSelect');
+  select.innerHTML = '';
+  if (filterOptions.length === 0) {
+    select.innerHTML = '<option value="">Không tìm thấy cột PT.xxx</option>';
+    return;
+  }
+  filterOptions.forEach(opt => {
+    const el = document.createElement('option');
+    el.value = opt.key;
+    el.textContent = `🎯 ${opt.label} (${opt.count} thẻ)`;
+    select.appendChild(el);
+  });
+  select.value = filterOptions[0].key;
+}
+
+/* =========================================================================
+   2. FIELD EXTRACTION PER ROW (A/C series + Visualization columns)
+   ========================================================================= */
+function extractRowFields(row){
+  const wbsid = findValue(row, /^WBSID$/i) || row['idx_0'] || '';
+  const a1Su  = findExact(row, /^A1[\s.:\-]*Sự/i) || findValue(row, /Sự/i);
+  const a2Ly  = findExact(row, /^A2[\s.:\-]*Lý/i) || findValue(row, /A2/i);
+  const a3KhaiDan = findExact(row, /^A3[\s.:\-]*Khai\s*Dẫn/i);
+  const a4Hanh  = findExact(row, /^A4[\s.:\-]*Hành\s*$/i);
+  const a4HanhA = findExact(row, /^A4[\s.:\-]*Hành\s*A\s*$/i) || findValue(row, /Hành\s*A/i);
+  const a4HanhB = findExact(row, /^A4[\s.:\-]*Hành\s*B\s*$/i) || findValue(row, /Hành\s*B/i);
+  const a5TrungDan = findExact(row, /^A5[\s.:\-]*Trung\s*Dẫn/i);
+  const a6ChuKD = findExact(row, /^A6[\s.:\-]*Chú\s*Khởi\s*Động/i);
+  const a8LoiKD = findExact(row, /^A8[\s.:\-]*Lời\s*Khẳng\s*Định/i);
+  const a9KetDan = findExact(row, /^A9[\s.:\-]*Kết\s*Dẫn/i);
+
+  const c5Name = findValue(row, /C5.*Thủ\s*Nhãn.*Tên/i) || findValue(row, /C5.*Tên/i) || findValue(row, /Thủ\s*Nhãn.*Tên/i);
+  const c1Ten  = findValue(row, /C1.*Tên/i) || findExact(row, /^C1\b/i);
+  const c4RawImg = findValue(row, /C4.*Link/i) || findValue(row, /C4.*Image/i) || findExact(row, /^C4\b/i);
+  const c4Img = getDriveDirectImageUrl(c4RawImg);
+
+  // Visualization columns: coordinate / model / color (flexible header matching)
+  const vizCoordRaw = findValue(row, /(Visualization|Viz).*?(Coord|Tọa)/i) || findValue(row, /^(Coord|Tọa\s*độ)/i) || findValue(row, /A2.*Lý/i);
+  const vizModelRaw = findValue(row, /(Visualization|Viz).*?Model/i) || findValue(row, /^Model|Mô\s*hình/i);
+  const vizColorRaw = findValue(row, /(Visualization|Viz).*?(Color|Màu)/i) || findValue(row, /^(Color|Màu)/i);
+
+  return {
+    wbsid, a1Su, a2Ly, a3KhaiDan, a4Hanh, a4HanhA, a4HanhB, a5TrungDan, a6ChuKD, a8LoiKD, a9KetDan,
+    c5Name, c1Ten, c4Img,
+    vizCoord: parseCoordinates(vizCoordRaw),
+    vizCoordStr: cleanText(vizCoordRaw),
+    vizModel: cleanText(vizModelRaw),
+    vizColor: cleanText(vizColorRaw) || '#ffd700'
+  };
+}
+
+/* =========================================================================
+   3. FILTER, SORT & RENDER CARDS
+   ========================================================================= */
+const activeVizInstances = []; // { cleanup() } for cards currently rendered
+
+function handleFilterSort(){
+  activeVizInstances.forEach(v => v.cleanup && v.cleanup());
+  activeVizInstances.length = 0;
+
+  const selectedKey = document.getElementById('ptSelect').value || (filterOptions[0] && filterOptions[0].key) || '';
+  const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
+  const app = document.getElementById('app');
+
+  let list = [];
+  if (selectedKey) {
+    list = allRows
+      .filter(r => cleanText(r[selectedKey]) !== '')
+      .sort((a,b) => naturalCompare(cleanText(a[selectedKey]), cleanText(b[selectedKey])));
+  }
+  if (searchVal) {
+    list = list.filter(r => Object.values(r).join(' ').toLowerCase().includes(searchVal));
+  }
+
+  document.getElementById('counterPill').textContent = `${list.length} / ${allRows.length}`;
+
+  if (list.length === 0) {
+    app.innerHTML = `<div class="status-box">Không tìm thấy thẻ nào phù hợp.</div>`;
+    return;
+  }
+
+  app.innerHTML = '';
+  list.forEach((row, i) => {
+    const f = extractRowFields(row);
+    const cardEl = document.createElement('div');
+    cardEl.className = 'card';
+
+    const comboText = (f.wbsid && f.a1Su) ? `${f.wbsid} – ${f.a1Su}` : (f.wbsid || f.a1Su || '');
+
+    cardEl.innerHTML = `
+      ${comboText ? `<div class="full-width-pill">${comboText}</div>` : ''}
+      <div class="card-split">
+        <div class="viz-pane" id="viz-${i}">
+          <span class="viz-label">${f.c5Name || 'Thủ Nhãn'}</span>
+          <div class="viz-canvas-holder"></div>
+          <span class="viz-hint">Kéo để xoay • Tự động xoay</span>
+        </div>
+        <div class="instr-pane">
+          ${f.a2Ly ? `<p class="top-ly">${f.a2Ly}</p>` : ''}
+          ${(f.c5Name || f.c1Ten || f.c4Img) ? `
+            <p class="card-label">
+              ${f.c5Name ? `<span>${f.c5Name}</span>` : ''}
+              ${(f.c5Name && f.c1Ten) ? `<span class="separator">–</span>` : ''}
+              ${f.c1Ten ? `<span>${f.c1Ten}</span>` : ''}
+              ${f.c4Img ? `<img class="c4-inline-img" src="${f.c4Img}" alt="CTT" loading="lazy" onerror="this.style.display='none'"/>` : ''}
+            </p>` : ''}
+          ${f.a3KhaiDan ? `<p class="lesser-dan">${f.a3KhaiDan}</p>` : ''}
+          ${f.a4Hanh ? `<h5 class="chu-header">${f.a4Hanh}</h5>` : ''}
+          ${(f.a4HanhA || f.a4HanhB) ? `
+            <div class="data-container">
+              ${f.a4HanhA ? `<div class="chu-col">${f.a4HanhA}</div>` : ''}
+              ${f.a4HanhB ? `<div class="chu-col">${f.a4HanhB}</div>` : ''}
+            </div>` : ''}
+          ${f.a5TrungDan ? `<p class="lesser-dan trung-dan">${f.a5TrungDan}</p>` : ''}
+          ${f.a6ChuKD ? `<p class="chu-KD-bold">${f.a6ChuKD}</p>` : ''}
+          ${f.a8LoiKD ? `<p class="KD-bold">${f.a8LoiKD}</p>` : ''}
+          ${f.a9KetDan ? `<p class="lesser-dan ket-dan">${f.a9KetDan}</p>` : ''}
+        </div>
+      </div>
+    `;
+    app.appendChild(cardEl);
+
+    const vizPane = cardEl.querySelector(`#viz-${i} .viz-canvas-holder`);
+    const vizInstance = initCardViz(vizPane, f);
+    activeVizInstances.push(vizInstance);
+  });
+}
+
+/* =========================================================================
+   4. PER-CARD MINI 3D VISUALIZATION (Crystal Buddha + Thủ Nhãn node)
+      Node position <- Visualization Coordinate
+      Node shape    <- Visualization Model
+      Node color    <- Visualization Color
+   ========================================================================= */
+function buildDharmaNodeGeometry(modelKeyword){
+  const key = (modelKeyword || '').toLowerCase();
+  if (/sphere|cầu|ngọc|jewel|bead|hạt|mani/.test(key)) return new THREE.SphereGeometry(0.15, 32, 32);
+  if (/cube|box|hộp|vuông|chest|rương/.test(key)) return new THREE.BoxGeometry(0.22, 0.22, 0.22);
+  if (/cone|nón|tháp|arrow|tên/.test(key)) return new THREE.ConeGeometry(0.14, 0.30, 32);
+  if (/torus|vòng|nhẫn|ring|bow|cung/.test(key)) return new THREE.TorusGeometry(0.13, 0.045, 16, 64);
+  if (/cylinder|trụ|chày|vajra|kim\s*cang|rope|dây/.test(key)) return new THREE.CylinderGeometry(0.07, 0.07, 0.32, 24);
+  if (/octahedron|diamond|kim\s*cương/.test(key)) return new THREE.OctahedronGeometry(0.17);
+  if (/lotus|sen|flower|hoa/.test(key)) return new THREE.DodecahedronGeometry(0.16);
+  if (/star|sao|sword|kiếm/.test(key)) return new THREE.IcosahedronGeometry(0.17, 0);
+  return new THREE.SphereGeometry(0.15, 32, 32);
+}
+
+function buildBuddhaStatue(sharedMat){
+  const group = new THREE.Group();
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 32, 32), sharedMat);
+  head.position.set(0, 0, 0.45); group.add(head);
+  const usnisa = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), sharedMat);
+  usnisa.position.set(0, 0, 0.72); group.add(usnisa);
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.28, 0.55, 32), sharedMat);
+  torso.rotation.x = Math.PI / 2; torso.position.set(0, 0, 0.08); group.add(torso);
+  const legs = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.13, 16, 64), sharedMat);
+  legs.position.set(0, 0, -0.28); group.add(legs);
+  return group;
+}
+
+const sharedGLTFLoader = ('THREE' in window && THREE.GLTFLoader) ? new THREE.GLTFLoader() : null;
+
+function initCardViz(container, fields){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x03060d, 0.09);
+
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 20);
+  camera.position.set(1.55, 1.75, 1.05);
+  camera.up.set(0, 0, 1);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.enableZoom = false;
+  controls.enablePan = false;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 1.1;
+  controls.target.set(0, 0, 0.05);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xfff6e5, 1.9); key.position.set(3,4,5); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x90c8ff, 1.0); fill.position.set(-3,-3,-2); scene.add(fill);
+
+  const crystalMat = new THREE.MeshPhysicalMaterial({
+    color: 0x80d8ff, emissive: 0x002b4d, emissiveIntensity: 0.2,
+    roughness: 0.18, metalness: 0.06, transmission: 0.68, opacity: 0.9, transparent: true,
+    depthWrite: false, side: THREE.FrontSide
+  });
+
+  const rootGroup = new THREE.Group();
+  rootGroup.rotation.z = Math.PI / 2;
+  const buddha = buildBuddhaStatue(crystalMat);
+  rootGroup.add(buddha);
+
+  // Thủ Nhãn node: position from Visualization Coordinate, shape from Model, color from Color
+  let nodeColor;
+  try { nodeColor = new THREE.Color(fields.vizColor); } catch(e) { nodeColor = new THREE.Color(0xffd700); }
+
+  const nodeMat = new THREE.MeshPhysicalMaterial({
+    color: nodeColor, emissive: nodeColor, emissiveIntensity: 0.55,
+    roughness: 0.22, metalness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2
+  });
+  const nodeGeo = buildDharmaNodeGeometry(fields.vizModel);
+  const nodeMesh = new THREE.Mesh(nodeGeo, nodeMat);
+  const [nx, ny, nz] = fields.vizCoord;
+  nodeMesh.position.set(nx || 0, ny || 0, nz || 0);
+  rootGroup.add(nodeMesh);
+
+  const nodeLight = new THREE.PointLight(nodeColor.getHex(), 1.4, 2.2);
+  nodeLight.position.copy(nodeMesh.position);
+  rootGroup.add(nodeLight);
+
+  const ringGeo = new THREE.RingGeometry(0.19, 0.22, 32);
+  const ringMat = new THREE.MeshBasicMaterial({ color: nodeColor, side: THREE.DoubleSide, transparent:true, opacity:0.85, blending: THREE.AdditiveBlending, depthWrite:false });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.copy(nodeMesh.position);
+  rootGroup.add(ring);
+
+  scene.add(rootGroup);
+
+  // Optional: load a custom GLB model referenced in the Visualization-Model column,
+  // replacing the placeholder node shape once it is ready.
+  if (sharedGLTFLoader && /\.(glb|gltf)(\?.*)?$/i.test(fields.vizModel || '')) {
+    sharedGLTFLoader.load(fields.vizModel, (gltf) => {
+      const loaded = gltf.scene;
+      loaded.traverse(n => { if (n.isMesh) { n.material = nodeMat; } });
+      loaded.scale.set(0.3, 0.3, 0.3);
+      loaded.position.copy(nodeMesh.position);
+      rootGroup.add(loaded);
+      nodeMesh.visible = false;
+    }, undefined, () => { /* keep placeholder shape on error */ });
+  }
+
+  let isVisible = true;
+  let rafId = null;
+
+  function resize(){
+    const w = container.clientWidth || 1;
+    const h = container.clientHeight || 1;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  const ro = new ResizeObserver(resize);
+  ro.observe(container);
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => { isVisible = en.isIntersecting; if (isVisible && !rafId) animate(); });
+  }, { threshold: 0.05 });
+  io.observe(container);
+
+  function animate(){
+    if (!isVisible) { rafId = null; return; }
+    rafId = requestAnimationFrame(animate);
+    ring.lookAt(camera.position);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  return {
+    cleanup(){
+      if (rafId) cancelAnimationFrame(rafId);
+      ro.disconnect();
+      io.disconnect();
+      renderer.dispose();
+      controls.dispose();
+    }
+  };
+}
+
+window.addEventListener('DOMContentLoaded', initSheetData);
+</script>
+</body>
+</html>
