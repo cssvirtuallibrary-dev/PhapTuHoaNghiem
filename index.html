@@ -5,159 +5,110 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Pháp Tu Hoa Nghiêm</title>
 
-<!-- Google Fonts: Vietnamese-friendly Noto Sans -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet">
 
-<!-- Three.js (for the per-card mini Buddha visualization) -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <style>
   :root{
-    --bg-color:#0b0c10;
-    --card-bg:#151722;
-    --card-border:rgba(255,255,255,0.08);
-    --viz-bg-a:#081122;
-    --viz-bg-b:#03060d;
-    --text-purple:#ce93d8;
-    --text-gold:#ffecb3;
-    --text-gold-bright:#ffe082;
-    --text-green:#81c784;
-    --text-light-green:#c8e6c9;
-    --text-peach-soft:#ffccbc;
-    --text-orange-bold:#ffab91;
-    --text-muted:#90a4ae;
-    --accent-gold:#ffd700;
-    --accent-cyan:#00e5ff;
+    --bg-color:#0b0c10; --card-bg:#151722; --card-border:rgba(255,255,255,0.08);
+    --viz-bg-a:#081122; --viz-bg-b:#03060d;
+    --text-purple:#ce93d8; --text-gold:#ffecb3; --text-gold-bright:#ffe082;
+    --text-green:#81c784; --text-light-green:#c8e6c9; --text-peach-soft:#ffccbc;
+    --text-orange-bold:#ffab91; --text-muted:#90a4ae; --accent-gold:#ffd700; --accent-cyan:#00e5ff;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  body{
-    background-color:var(--bg-color);
-    color:#eceff1;
-    font-family:'Noto Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    padding-bottom:60px;
-  }
+  body{ background-color:var(--bg-color); color:#eceff1; font-family:'Noto Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; padding-bottom:60px; }
 
-  /* ================= HEADER / FILTER BAR ================= */
-  header{
-    position:sticky; top:0; z-index:100;
-    background:rgba(11,12,16,0.96);
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-    padding:10px 14px;
-    border-bottom:1px solid var(--card-border);
-    box-shadow:0 4px 20px rgba(0,0,0,0.5);
-    transition:transform .3s cubic-bezier(.25,1,.5,1), opacity .3s ease;
-  }
+  header{ position:sticky; top:0; z-index:100; background:rgba(11,12,16,0.96); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    padding:10px 14px; border-bottom:1px solid var(--card-border); box-shadow:0 4px 20px rgba(0,0,0,0.5);
+    transition:transform .3s cubic-bezier(.25,1,.5,1), opacity .3s ease; }
   header.header-hidden{ transform:translateY(-105%); opacity:0; pointer-events:none; }
   .header-container{ max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:8px; }
   .header-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .app-title{ font-size:1.05rem; font-weight:800; color:var(--text-gold); letter-spacing:.3px; white-space:nowrap; }
   .header-actions{ display:flex; align-items:center; gap:8px; }
-  .counter-pill{
-    font-size:.8rem; background:rgba(255,236,179,.15); color:var(--text-gold);
-    border:1px solid rgba(255,236,179,.28); padding:3px 10px; border-radius:14px; font-weight:700; white-space:nowrap;
-  }
+  .counter-pill{ font-size:.8rem; background:rgba(255,236,179,.15); color:var(--text-gold); border:1px solid rgba(255,236,179,.28); padding:3px 10px; border-radius:14px; font-weight:700; white-space:nowrap; }
   .sync-dot{ width:9px; height:9px; border-radius:50%; background:#ffd700; box-shadow:0 0 8px #ffd700; display:inline-block; }
   .sync-pill{ display:flex; align-items:center; gap:6px; font-size:.78rem; color:var(--text-muted); }
-  .toggle-btn{
-    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); color:var(--text-gold);
-    width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:.9rem;
-  }
+  .toggle-btn{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); color:var(--text-gold);
+    width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:.9rem; }
   .controls-grid{ display:grid; grid-template-columns:1fr; gap:8px; }
   .controls-grid.collapsed{ display:none; }
   @media (min-width:680px){
     .header-container{ flex-direction:row; align-items:center; justify-content:space-between; }
     .controls-grid{ grid-template-columns:1.2fr 1fr; flex:1; max-width:680px; margin-left:16px; }
   }
-  .custom-select,.search-box{
-    width:100%; background:#1e202c; color:#fff; border:1px solid rgba(255,255,255,.15);
-    border-radius:10px; padding:9px 12px; font-size:.92rem; outline:none; transition:border-color .2s ease;
-  }
+  .custom-select,.search-box{ width:100%; background:#1e202c; color:#fff; border:1px solid rgba(255,255,255,.15);
+    border-radius:10px; padding:9px 12px; font-size:.92rem; outline:none; transition:border-color .2s ease; }
   .custom-select:focus,.search-box:focus{ border-color:var(--text-gold); }
   .search-box::placeholder{ color:#78909c; }
 
-  #quickFilterBtn{
-    position:fixed; top:14px; right:14px; z-index:99;
-    background:rgba(30,32,44,.9); border:1px solid rgba(255,236,179,.3); color:var(--text-gold);
-    padding:6px 12px; border-radius:20px; font-size:.82rem; font-weight:700;
-    box-shadow:0 4px 12px rgba(0,0,0,.4); cursor:pointer; display:none; backdrop-filter:blur(8px);
-  }
+  #quickFilterBtn{ position:fixed; top:14px; right:14px; z-index:99; background:rgba(30,32,44,.9); border:1px solid rgba(255,236,179,.3);
+    color:var(--text-gold); padding:6px 12px; border-radius:20px; font-size:.82rem; font-weight:700;
+    box-shadow:0 4px 12px rgba(0,0,0,.4); cursor:pointer; display:none; backdrop-filter:blur(8px); }
 
   main{ width:100%; max-width:1100px; margin:0 auto; padding:12px 10px; }
   .status-box{ text-align:center; padding:70px 16px; color:var(--text-muted); font-size:.95rem; }
   .spinner{ width:34px; height:34px; border:3px solid rgba(206,147,216,.2); border-top-color:var(--text-purple); border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 16px auto; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
-  /* ================= CARD STRUCTURE ================= */
-  .card{
-    background:var(--card-bg); border-radius:18px; border:1px solid var(--card-border);
-    box-shadow:0 6px 20px rgba(0,0,0,.4); margin-bottom:22px; overflow:hidden;
-  }
-  .full-width-pill{
-    display:block; width:calc(100% - 28px); margin:14px auto 0 auto; text-align:center;
-    font-size:clamp(.85rem,2.5vw,1rem); color:var(--text-gold); background:rgba(255,236,179,.10);
-    border:1px solid rgba(255,236,179,.26); padding:7px 14px; border-radius:24px; font-weight:700;
-    letter-spacing:.3px; word-break:break-word;
-  }
+  /* ============ OVERVIEW: COLUMN OF LIGHT SPIRAL (WHOLE SEQUENCE) ============ */
+  .overview-panel{ margin-bottom:18px; border-radius:16px; border:1px solid rgba(187,102,255,.35); background:linear-gradient(180deg, rgba(30,10,50,.35), rgba(10,6,20,.55)); overflow:hidden; box-shadow:0 6px 24px rgba(120,0,255,.15); }
+  .overview-toggle-pill{ width:100%; text-align:left; padding:12px 16px; background:transparent; border:none; color:#e1bee7; font-weight:800; font-size:.92rem; cursor:pointer; display:flex; align-items:center; justify-content:space-between; letter-spacing:.3px; }
+  .overview-toggle-pill:hover{ background:rgba(187,102,255,.08); }
+  .overview-body{ border-top:1px solid rgba(187,102,255,.25); }
+  .overview-canvas-wrap{ position:relative; width:100%; height:340px; background:radial-gradient(circle at 50% 40%, #140a24 0%, #04020a 70%, #010005 100%); touch-action:none; }
+  .overview-canvas-wrap canvas{ display:block; width:100%; height:100%; }
+  .overview-controls{ display:flex; align-items:center; gap:10px; padding:10px 14px; flex-wrap:wrap; background:rgba(10,6,20,.5); }
+  .overview-controls button{ background:rgba(187,102,255,.15); border:1px solid rgba(187,102,255,.45); color:#e1bee7; padding:7px 13px; border-radius:8px; font-weight:700; font-size:.82rem; cursor:pointer; }
+  .overview-controls button:hover{ background:rgba(187,102,255,.3); }
+  .overview-label{ font-size:.82rem; color:#d1c4e9; font-weight:600; margin-left:auto; }
+  @media (min-width:680px){ .overview-canvas-wrap{ height:440px; } }
 
-  /* Portrait (default): viz on TOP, instructions BELOW */
+  /* ================= CARD STRUCTURE ================= */
+  .card{ background:var(--card-bg); border-radius:18px; border:1px solid var(--card-border); box-shadow:0 6px 20px rgba(0,0,0,.4); margin-bottom:22px; overflow:hidden; }
+  .full-width-pill{ display:block; width:calc(100% - 28px); margin:14px auto 0 auto; text-align:center; font-size:clamp(.85rem,2.5vw,1rem); color:var(--text-gold);
+    background:rgba(255,236,179,.10); border:1px solid rgba(255,236,179,.26); padding:7px 14px; border-radius:24px; font-weight:700; letter-spacing:.3px; word-break:break-word; }
+
   .card-split{ display:flex; flex-direction:column; width:100%; }
-  .viz-pane{
-    position:relative; width:100%; height:300px;
-    background:radial-gradient(circle at 50% 40%, var(--viz-bg-a) 0%, var(--viz-bg-b) 70%, #010206 100%);
-    touch-action:none;
-  }
+  .viz-pane{ position:relative; width:100%; height:300px; background:radial-gradient(circle at 50% 40%, var(--viz-bg-a) 0%, var(--viz-bg-b) 70%, #010206 100%); touch-action:none; overflow:hidden; }
   .instr-pane{ width:100%; padding:16px 16px 22px 16px; display:flex; flex-direction:column; }
 
-  /* Landscape: viz on LEFT, instructions on RIGHT */
   @media (orientation:landscape){
     .card-split{ flex-direction:row; align-items:stretch; }
-    .full-width-pill{ margin:14px auto 0 auto; }
     .viz-pane{ width:44%; height:auto; min-height:420px; flex-shrink:0; }
     .instr-pane{ width:56%; border-left:1px solid rgba(255,255,255,.06); }
   }
-  @media (orientation:landscape) and (max-height:520px){
-    .viz-pane{ min-height:320px; }
-  }
+  @media (orientation:landscape) and (max-height:520px){ .viz-pane{ min-height:320px; } }
 
   .viz-canvas-holder{ position:absolute; inset:0; }
   .viz-canvas-holder canvas{ display:block; width:100%; height:100%; }
-  .viz-hint{
-    position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:.68rem;
-    color:rgba(255,255,255,.45); letter-spacing:.4px; pointer-events:none;
-  }
-  .viz-label{
-    position:absolute; top:8px; left:10px; right:10px; font-size:.72rem; font-weight:700;
-    color:var(--accent-gold); text-shadow:0 0 6px rgba(0,0,0,.8); letter-spacing:.3px; pointer-events:none;
-  }
-  .viz-load-status{
-    position:absolute; bottom:24px; left:0; right:0; text-align:center; font-size:.65rem;
-    color:rgba(255,215,0,.75); letter-spacing:.3px; pointer-events:none;
-  }
+  .viz-hint{ position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:.68rem; color:rgba(255,255,255,.45); letter-spacing:.4px; pointer-events:none; }
+  .viz-label{ position:absolute; top:8px; left:10px; right:10px; font-size:.72rem; font-weight:700; color:var(--accent-gold); text-shadow:0 0 6px rgba(0,0,0,.8); letter-spacing:.3px; pointer-events:none; z-index:5; }
+  .viz-load-status{ position:absolute; bottom:24px; left:0; right:0; text-align:center; font-size:.65rem; color:rgba(255,215,0,.75); letter-spacing:.3px; pointer-events:none; padding:0 6px; }
 
-  /* Top: A2 Lý */
+  .viz-image-full{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; padding:10px; }
+  .viz-image-thumb{ position:absolute; bottom:8px; right:8px; width:64px; height:64px; object-fit:cover; border-radius:8px; border:2px solid rgba(255,215,0,.55); box-shadow:0 2px 10px rgba(0,0,0,.6); z-index:6; background:#000; }
+  .viz-trigger-badges{ position:absolute; top:8px; right:8px; display:flex; flex-wrap:wrap; gap:4px; justify-content:flex-end; max-width:65%; z-index:6; }
+  .trigger-badge{ font-size:.62rem; font-weight:800; letter-spacing:.3px; color:#03060d; background:linear-gradient(135deg,#ffd700,#ff9900); padding:2px 7px; border-radius:10px; box-shadow:0 0 8px rgba(255,215,0,.5); }
+
   .top-ly{ font-style:italic; color:#a5d6a7; text-align:center; font-size:clamp(.85rem,1.8vw,.95rem); line-height:1.45; margin:2px 0 10px 0; padding:0 4px; opacity:.95; }
-
-  /* Title: C5 Thủ Nhãn – C1 Tên CTT – C4 image */
   .card-label{ color:var(--text-purple); text-align:center; font-size:clamp(1.2rem,3vw,1.55rem); font-weight:700; line-height:1.3; margin:4px 0 6px 0; word-break:break-word; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; }
   .separator{ color:#b0bec5; font-weight:300; }
   .c4-inline-img{ height:1.5em; max-height:34px; width:auto; vertical-align:middle; border-radius:6px; background:rgba(255,255,255,.05); padding:2px; filter:drop-shadow(0 0 6px rgba(255,215,0,.45)); }
 
-  /* A1 Sự already in pill; A3 Khai Dẫn / A5 Trung Dẫn / A9 Kết Dẫn share this lesser style */
   .lesser-dan{ color:var(--text-peach-soft); text-align:center; font-weight:400; font-style:italic; font-size:clamp(.88rem,1.8vw,1.02rem); line-height:1.45; margin:10px 4px; padding:0 4px; opacity:.92; }
   .lesser-dan.trung-dan{ color:#b39ddb; }
   .lesser-dan.ket-dan{ color:#80cbc4; }
-
   .chu-header{ color:var(--text-gold-bright); text-align:center; font-weight:800; font-size:clamp(1.05rem,2.3vw,1.3rem); margin:14px 0 8px 0; letter-spacing:.3px; }
-
   .data-container{ display:flex; justify-content:space-between; gap:10px; margin:8px 0 14px 0; }
   .chu-col{ flex:1; color:#fff3d0; text-align:center; font-weight:700; font-size:clamp(.9rem,2vw,1.08rem); line-height:1.35; background:rgba(255,236,179,.08); padding:10px 8px; border-radius:10px; border:1.5px solid rgba(255,236,179,.22); box-shadow:0 2px 8px rgba(0,0,0,.2); word-break:break-word; }
-
   .chu-KD-bold{ color:var(--text-orange-bold); text-align:center; font-weight:800; font-size:clamp(1.05rem,2.3vw,1.28rem); line-height:1.35; margin:12px 0 8px 0; padding:8px 10px; background:rgba(255,171,145,.08); border-radius:8px; border:1px solid rgba(255,171,145,.22); word-break:break-word; }
-
   .KD-bold{ color:var(--text-light-green); text-align:center; font-weight:800; font-size:clamp(1.08rem,2.3vw,1.3rem); line-height:1.35; margin:10px 0 10px 0; padding:8px 10px; background:rgba(200,230,201,.08); border-radius:8px; border:1px solid rgba(200,230,201,.22); word-break:break-word; }
 </style>
 </head>
@@ -185,24 +136,31 @@
 </header>
 
 <main id="app">
-  <div class="status-box" id="statusBox">
-    <div class="spinner"></div>
-    Đang kết nối dữ liệu Google Sheet...
+  <div id="overviewSection"></div>
+  <div id="cardFeed">
+    <div class="status-box" id="statusBox">
+      <div class="spinner"></div>
+      Đang kết nối dữ liệu Google Sheet...
+    </div>
   </div>
 </main>
 
 <script>
 /* =========================================================================
-   CONFIGURATION — change these two values to point at your own Google Sheet.
-   The sheet MUST be shared as "Anyone with the link -> Viewer".
+   CONFIGURATION
    ========================================================================= */
 const SHEET_ID = '1Gvl7SNXhVSrKBJiPgt78T2opWckb5OO59S-q_4S6Y7w';
 const TAB_NAME = 'WBSID';
 const GVIZ_URL       = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(TAB_NAME)}`;
 const GVIZ_JSONP_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizData&sheet=${encodeURIComponent(TAB_NAME)}`;
 
-let allRows = [];        // parsed sheet rows -> field objects
-let filterOptions = [];  // { key: 'PT.xxx', label, count }
+// Trigger tokens that mean "run the WHOLE filtered sequence as one continuous
+// Column of Light Spiral" (place this token in the Visualization cell of any
+// row within the sequence you want to enable it for).
+const WHOLE_SEQUENCE_SPIRAL_TOKENS = ['SPIRAL_ALL', 'COLUMN_ALL', 'SPIRAL_SEQUENCE', 'COLUMN_OF_LIGHT'];
+
+let allRows = [];
+let filterOptions = [];
 let colHeaders = [];
 
 /* ================= HEADER AUTO-HIDE ON SCROLL ================= */
@@ -225,7 +183,7 @@ function toggleControlsCollapse(){
   else { grid.classList.add('collapsed'); btn.textContent='▲'; }
 }
 
-/* ================= HELPERS ================= */
+/* ================= GENERAL HELPERS ================= */
 function cleanText(v){
   if (v===undefined || v===null) return '';
   const s = String(v).trim();
@@ -233,16 +191,11 @@ function cleanText(v){
   return s;
 }
 function findValue(row, pattern){
-  for (const [k,v] of Object.entries(row)) {
-    if (pattern.test(k)) { const c = cleanText(v); if (c) return c; }
-  }
+  for (const [k,v] of Object.entries(row)) { if (pattern.test(k)) { const c = cleanText(v); if (c) return c; } }
   return '';
 }
 function findExact(row, pattern){
-  // stricter match used to separate "A4 Hành" from "A4 Hành A/B"
-  for (const [k,v] of Object.entries(row)) {
-    if (pattern.test(k.trim())) { const c = cleanText(v); if (c) return c; }
-  }
+  for (const [k,v] of Object.entries(row)) { if (pattern.test(k.trim())) { const c = cleanText(v); if (c) return c; } }
   return '';
 }
 function naturalCompare(a,b){ return String(a).localeCompare(String(b), undefined, {numeric:true, sensitivity:'base'}); }
@@ -259,9 +212,9 @@ function getDriveDirectImageUrl(urlOrId){
   return '';
 }
 
-/* Robust "x,y,z" coordinate parser (handles decimal commas, semicolons, brackets) */
+/* Robust "x,y,z" coordinate parser */
 function parseCoordinates(coordStr){
-  if (!coordStr) return [0,0,0];
+  if (!coordStr) return null;
   let cleaned = String(coordStr)
     .replace(/[\u2212\u2010\u2011\u2012\u2013\u2014\u2015\uFE63\uFF0D]/g,'-')
     .replace(/[()[\]{}'"]/g,'').trim();
@@ -278,11 +231,51 @@ function parseCoordinates(coordStr){
   if (decM && decM.length>=3) return [parseFloat(decM[0]),parseFloat(decM[1]),parseFloat(decM[2])];
   const intM = cleaned.match(/-?\d+/g);
   if (intM && intM.length>=3) return [parseFloat(intM[0]),parseFloat(intM[1]),parseFloat(intM[2])];
-  return [0,0,0];
+  return null;
+}
+
+/* -------------------------------------------------------------------------
+   VISUALIZATION CELL PARSER
+   The Google Sheet header "Visualization" can contain, in any combination:
+     - A Google Drive (or plain http) image link         -> displayed as image
+     - One or more animation triggers like +LASER, +EGO,
+       +HELIX, +TORUS_IN, +TORUS_OUT, or any brand new +xxx -> loads the
+       Buddha 3D model and plays the matching animation (or a generic
+       glowing-pulse animation + label for unrecognized new triggers)
+     - A "x, y, z" coordinate                              -> places a small
+       glowing dharma-object marker at that position on the Buddha
+     - A #hexcolor                                         -> tints the marker
+       and/or the animation associated with this row
+     - One of WHOLE_SEQUENCE_SPIRAL_TOKENS (e.g. +SPIRAL_ALL) -> does NOT run
+       on this card; instead it flags the entire filtered PT.xxx sequence to
+       offer the combined "Column of Light Spiral" overview animation.
+   ------------------------------------------------------------------------- */
+function parseVisualizationCell(raw){
+  const text = cleanText(raw);
+  if (!text) return { raw:'', imageUrl:'', triggers:[], coords:null, colorHex:'' };
+  let working = text;
+
+  const urlMatch = working.match(/https?:\/\/\S+/i);
+  const url = urlMatch ? urlMatch[0].replace(/[)\],;]+$/,'') : '';
+  if (url) working = working.replace(url, ' ');
+
+  const triggers = [...working.matchAll(/\+([A-Za-z][A-Za-z0-9_]*)/g)].map(m => m[1].toUpperCase());
+  working = working.replace(/\+[A-Za-z][A-Za-z0-9_]*/g, ' ');
+
+  const colorMatch = working.match(/#(?:[0-9a-f]{3}|[0-9a-f]{6})\b/i);
+  const colorHex = colorMatch ? colorMatch[0] : '';
+  if (colorHex) working = working.replace(colorHex, ' ');
+
+  const numCount = (working.match(/-?\d+(?:[.,]\d+)?/g) || []).length;
+  const coords = numCount >= 3 ? parseCoordinates(working) : null;
+
+  const imageUrl = url ? getDriveDirectImageUrl(url) : '';
+
+  return { raw:text, imageUrl, triggers, coords, colorHex };
 }
 
 /* =========================================================================
-   1. GOOGLE SHEET INGESTION (fetch first, JSONP fallback)
+   1. GOOGLE SHEET INGESTION
    ========================================================================= */
 function setSync(label, color){
   document.getElementById('syncLabel').textContent = label;
@@ -299,7 +292,6 @@ async function initSheetData(){
     const json = JSON.parse(jsonStr);
     onGvizLoaded(json);
   } catch (err) {
-    // Fallback: JSONP (works even when fetch is blocked by CORS policies)
     setSync('Đang thử kết nối JSONP…', '#ffd700');
     window.handleGvizData = function(json){ onGvizLoaded(json); };
     const script = document.createElement('script');
@@ -315,10 +307,7 @@ async function initSheetData(){
 }
 
 function onGvizLoaded(json){
-  if (!json || !json.table || !json.table.rows) {
-    setSync('Không có dữ liệu', '#ef5350');
-    return;
-  }
+  if (!json || !json.table || !json.table.rows) { setSync('Không có dữ liệu', '#ef5350'); return; }
   let headers = (json.table.cols || []).map(c => (c && c.label) ? c.label.trim() : '');
   let startRow = 0;
   if (json.table.rows.length > 0) {
@@ -349,7 +338,6 @@ function onGvizLoaded(json){
   setSync('Đã đồng bộ Google Sheet', '#00ff88');
 }
 
-/* Narrow the filter selection exclusively to headers starting with "PT." */
 function discoverPTFilters(headersList){
   filterOptions = [];
   const seen = new Set();
@@ -357,10 +345,7 @@ function discoverPTFilters(headersList){
     const headerName = (h||'').trim();
     if (/^PT\./i.test(headerName) && !seen.has(headerName)) {
       const validRows = allRows.filter(r => cleanText(r[headerName]) !== '');
-      if (validRows.length > 0) {
-        seen.add(headerName);
-        filterOptions.push({ key: headerName, label: headerName, count: validRows.length });
-      }
+      if (validRows.length > 0) { seen.add(headerName); filterOptions.push({ key: headerName, label: headerName, count: validRows.length }); }
     }
   });
 }
@@ -368,10 +353,7 @@ function discoverPTFilters(headersList){
 function buildDropdown(){
   const select = document.getElementById('ptSelect');
   select.innerHTML = '';
-  if (filterOptions.length === 0) {
-    select.innerHTML = '<option value="">Không tìm thấy cột PT.xxx</option>';
-    return;
-  }
+  if (filterOptions.length === 0) { select.innerHTML = '<option value="">Không tìm thấy cột PT.xxx</option>'; return; }
   filterOptions.forEach(opt => {
     const el = document.createElement('option');
     el.value = opt.key;
@@ -382,7 +364,7 @@ function buildDropdown(){
 }
 
 /* =========================================================================
-   2. FIELD EXTRACTION PER ROW (A/C series + Visualization columns)
+   2. FIELD EXTRACTION PER ROW
    ========================================================================= */
 function extractRowFields(row){
   const wbsid = findValue(row, /^WBSID$/i) || row['idx_0'] || '';
@@ -402,33 +384,31 @@ function extractRowFields(row){
   const c4RawImg = findValue(row, /C4.*Link/i) || findValue(row, /C4.*Image/i) || findExact(row, /^C4\b/i);
   const c4Img = getDriveDirectImageUrl(c4RawImg);
 
-  // Visualization columns: coordinate / model / color (flexible header matching)
-  const vizCoordRaw = findValue(row, /(Visualization|Viz).*?(Coord|Tọa)/i) || findValue(row, /^(Coord|Tọa\s*độ)/i) || findValue(row, /A2.*Lý/i);
-  const vizModelRaw = findValue(row, /(Visualization|Viz).*?Model/i) || findValue(row, /^Model|Mô\s*hình/i);
-  const vizColorRaw = findValue(row, /(Visualization|Viz).*?(Color|Màu)/i) || findValue(row, /^(Color|Màu)/i);
+  // Single consolidated "Visualization" column drives the left/top pane.
+  const vizRaw = findExact(row, /^Visualization\b/i) || findValue(row, /Visualization/i);
+  const viz = parseVisualizationCell(vizRaw);
 
   return {
     wbsid, a1Su, a2Ly, a3KhaiDan, a4Hanh, a4HanhA, a4HanhB, a5TrungDan, a6ChuKD, a8LoiKD, a9KetDan,
-    c5Name, c1Ten, c4Img,
-    vizCoord: parseCoordinates(vizCoordRaw),
-    vizCoordStr: cleanText(vizCoordRaw),
-    vizModel: cleanText(vizModelRaw),
-    vizColor: cleanText(vizColorRaw) || '#ffd700'
+    c5Name, c1Ten, c4Img, viz
   };
 }
 
 /* =========================================================================
-   3. FILTER, SORT & RENDER CARDS
+   3. FILTER, SORT & RENDER (cards + overview panel)
    ========================================================================= */
-const activeVizInstances = []; // { cleanup() } for cards currently rendered
+const activeVizInstances = [];
+let overviewController = null;
 
 function handleFilterSort(){
   activeVizInstances.forEach(v => v.cleanup && v.cleanup());
   activeVizInstances.length = 0;
+  if (overviewController) { overviewController.cleanup(); overviewController = null; }
 
   const selectedKey = document.getElementById('ptSelect').value || (filterOptions[0] && filterOptions[0].key) || '';
   const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
-  const app = document.getElementById('app');
+  const cardFeed = document.getElementById('cardFeed');
+  const overviewSection = document.getElementById('overviewSection');
 
   let list = [];
   if (selectedKey) {
@@ -436,33 +416,43 @@ function handleFilterSort(){
       .filter(r => cleanText(r[selectedKey]) !== '')
       .sort((a,b) => naturalCompare(cleanText(a[selectedKey]), cleanText(b[selectedKey])));
   }
-  if (searchVal) {
-    list = list.filter(r => Object.values(r).join(' ').toLowerCase().includes(searchVal));
-  }
+  if (searchVal) list = list.filter(r => Object.values(r).join(' ').toLowerCase().includes(searchVal));
 
   document.getElementById('counterPill').textContent = `${list.length} / ${allRows.length}`;
 
   if (list.length === 0) {
-    app.innerHTML = `<div class="status-box">Không tìm thấy thẻ nào phù hợp.</div>`;
+    overviewSection.innerHTML = '';
+    cardFeed.innerHTML = `<div class="status-box">Không tìm thấy thẻ nào phù hợp.</div>`;
     return;
   }
 
-  app.innerHTML = '';
-  list.forEach((row, i) => {
-    const f = extractRowFields(row);
+  // Pre-extract fields once; reused by both the overview panel and the cards.
+  const extracted = list.map(row => extractRowFields(row));
+
+  const wholeSeqTriggered = extracted.some(f => f.viz.triggers.some(t => WHOLE_SEQUENCE_SPIRAL_TOKENS.includes(t)));
+  renderOverviewSection(overviewSection, extracted, wholeSeqTriggered);
+
+  cardFeed.innerHTML = '';
+  extracted.forEach((f, i) => {
     const cardEl = document.createElement('div');
     cardEl.className = 'card';
-
     const comboText = (f.wbsid && f.a1Su) ? `${f.wbsid} – ${f.a1Su}` : (f.wbsid || f.a1Su || '');
+
+    const triggersForCard = f.viz.triggers.filter(t => !WHOLE_SEQUENCE_SPIRAL_TOKENS.includes(t));
+    const showPureImage = !!f.viz.imageUrl && triggersForCard.length === 0;
 
     cardEl.innerHTML = `
       ${comboText ? `<div class="full-width-pill">${comboText}</div>` : ''}
       <div class="card-split">
         <div class="viz-pane" id="viz-${i}">
           <span class="viz-label">${f.c5Name || 'Thủ Nhãn'}</span>
-          <div class="viz-canvas-holder"></div>
+          ${triggersForCard.length ? `<div class="viz-trigger-badges">${triggersForCard.map(t=>`<span class="trigger-badge">+${t}</span>`).join('')}</div>` : ''}
+          ${showPureImage
+            ? `<img class="viz-image-full" src="${f.viz.imageUrl}" alt="Visualization" loading="lazy" />`
+            : `<div class="viz-canvas-holder"></div>${f.viz.imageUrl ? `<img class="viz-image-thumb" src="${f.viz.imageUrl}" alt="Visualization" loading="lazy" onerror="this.style.display='none'"/>` : ''}`
+          }
           <span class="viz-load-status" id="viz-status-${i}"></span>
-          <span class="viz-hint">Kéo để xoay • Tự động xoay</span>
+          <span class="viz-hint">${showPureImage ? '' : 'Kéo để xoay • Tự động xoay'}</span>
         </div>
         <div class="instr-pane">
           ${f.a2Ly ? `<p class="top-ly">${f.a2Ly}</p>` : ''}
@@ -487,63 +477,22 @@ function handleFilterSort(){
         </div>
       </div>
     `;
-    app.appendChild(cardEl);
+    cardFeed.appendChild(cardEl);
 
-    const vizPane = cardEl.querySelector(`#viz-${i} .viz-canvas-holder`);
-    const statusEl = cardEl.querySelector(`#viz-status-${i}`);
-    const vizInstance = initCardViz(vizPane, f, statusEl);
-    activeVizInstances.push(vizInstance);
+    if (!showPureImage) {
+      const vizPane = cardEl.querySelector(`#viz-${i} .viz-canvas-holder`);
+      const statusEl = cardEl.querySelector(`#viz-status-${i}`);
+      const vizInstance = initCardViz(vizPane, f, triggersForCard, statusEl);
+      activeVizInstances.push(vizInstance);
+    }
   });
 }
 
 /* =========================================================================
-   4. PER-CARD MINI 3D VISUALIZATION (Crystal Buddha + Thủ Nhãn node)
-      Node position <- Visualization Coordinate
-      Node shape    <- Visualization Model
-      Node color    <- Visualization Color
+   4. SHARED BUDDHA MODEL LOADER
    ========================================================================= */
-function buildDharmaNodeGeometry(modelKeyword){
-  const key = (modelKeyword || '').toLowerCase();
-  if (/sphere|cầu|ngọc|jewel|bead|hạt|mani/.test(key)) return new THREE.SphereGeometry(0.15, 32, 32);
-  if (/cube|box|hộp|vuông|chest|rương/.test(key)) return new THREE.BoxGeometry(0.22, 0.22, 0.22);
-  if (/cone|nón|tháp|arrow|tên/.test(key)) return new THREE.ConeGeometry(0.14, 0.30, 32);
-  if (/torus|vòng|nhẫn|ring|bow|cung/.test(key)) return new THREE.TorusGeometry(0.13, 0.045, 16, 64);
-  if (/cylinder|trụ|chày|vajra|kim\s*cang|rope|dây/.test(key)) return new THREE.CylinderGeometry(0.07, 0.07, 0.32, 24);
-  if (/octahedron|diamond|kim\s*cương/.test(key)) return new THREE.OctahedronGeometry(0.17);
-  if (/lotus|sen|flower|hoa/.test(key)) return new THREE.DodecahedronGeometry(0.16);
-  if (/star|sao|sword|kiếm/.test(key)) return new THREE.IcosahedronGeometry(0.17, 0);
-  return new THREE.SphereGeometry(0.15, 32, 32);
-}
-
-function buildBuddhaStatue(sharedMat){
-  const group = new THREE.Group();
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 32, 32), sharedMat);
-  head.position.set(0, 0, 0.45); group.add(head);
-  const usnisa = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), sharedMat);
-  usnisa.position.set(0, 0, 0.72); group.add(usnisa);
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.28, 0.55, 32), sharedMat);
-  torso.rotation.x = Math.PI / 2; torso.position.set(0, 0, 0.08); group.add(torso);
-  const legs = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.13, 16, 64), sharedMat);
-  legs.position.set(0, 0, -0.28); group.add(legs);
-  return group;
-}
-
 const sharedGLTFLoader = ('THREE' in window && THREE.GLTFLoader) ? new THREE.GLTFLoader() : null;
 
-/* -------------------------------------------------------------------------
-   SHARED BUDDHA STATUE MODEL LOADER
-   Tries, in order:
-     1. The local .glb sitting in the SAME FOLDER as this HTML file
-        (only works when the page is served via http(s):// — NOT via
-        double-clicking the file directly, since browsers block local
-        binary fetches under the file:// origin).
-     2. Two different Google Drive "direct download" URL patterns for your
-        shared file (best-effort only — Drive frequently blocks this for
-        larger binaries with a virus-scan HTML page instead of raw bytes,
-        and may not send CORS headers needed by the loader).
-   If every candidate fails, each card keeps the lightweight procedural
-   placeholder statue so the visualization is never left blank.
-   ------------------------------------------------------------------------- */
 const BUDDHA_LOCAL_FILENAME = 'glass+buddha+statue+3d+model.glb';
 const BUDDHA_DRIVE_FILE_ID  = '1oXXorykDJrFvKstX8g_npeAenJtpONtT';
 const BUDDHA_MODEL_CANDIDATES = [
@@ -551,30 +500,22 @@ const BUDDHA_MODEL_CANDIDATES = [
   `https://drive.google.com/uc?export=download&id=${BUDDHA_DRIVE_FILE_ID}`,
   `https://drive.usercontent.google.com/download?id=${BUDDHA_DRIVE_FILE_ID}&export=download&confirm=t`
 ];
-
-// Tune these three if the loaded GLB appears mis-scaled, floating, or sideways.
-const BUDDHA_TARGET_HEIGHT    = 1.55;      // desired height (scene units) of the standing/seated figure
-const BUDDHA_GROUND_Z         = -0.35;     // where the base of the statue should sit
-const BUDDHA_EXTRA_ROTATION_X = Math.PI/2; // most GLB exports are Y-up; this scene is Z-up
+const BUDDHA_TARGET_HEIGHT    = 1.55;
+const BUDDHA_GROUND_Z         = -0.35;
+const BUDDHA_EXTRA_ROTATION_X = Math.PI/2;
 
 let buddhaModelLoadPromise = null;
 function loadSharedBuddhaModel(){
   if (buddhaModelLoadPromise) return buddhaModelLoadPromise;
   if (!sharedGLTFLoader) { buddhaModelLoadPromise = Promise.reject(new Error('GLTFLoader unavailable')); return buddhaModelLoadPromise; }
-
   const tryIndex = (idx) => {
     if (idx >= BUDDHA_MODEL_CANDIDATES.length) return Promise.reject(new Error('All Buddha model sources failed to load'));
     const url = BUDDHA_MODEL_CANDIDATES[idx];
     return new Promise((resolve, reject) => {
-      sharedGLTFLoader.load(
-        url,
-        (gltf) => resolve(gltf.scene),
-        undefined,
-        (err) => { console.warn(`Buddha model source failed: ${url}`, err); reject(err); }
-      );
+      sharedGLTFLoader.load(url, (gltf) => resolve(gltf.scene), undefined,
+        (err) => { console.warn(`Buddha model source failed: ${url}`, err); reject(err); });
     }).catch(() => tryIndex(idx + 1));
   };
-
   buddhaModelLoadPromise = tryIndex(0);
   return buddhaModelLoadPromise;
 }
@@ -596,7 +537,139 @@ function fitBuddhaModelToScene(object3D){
   object3D.position.z += BUDDHA_GROUND_Z;
 }
 
-function initCardViz(container, fields, statusEl){
+function buildBuddhaStatue(sharedMat){
+  const group = new THREE.Group();
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 32, 32), sharedMat);
+  head.position.set(0, 0, 0.45); group.add(head);
+  const usnisa = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), sharedMat);
+  usnisa.position.set(0, 0, 0.72); group.add(usnisa);
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.28, 0.55, 32), sharedMat);
+  torso.rotation.x = Math.PI / 2; torso.position.set(0, 0, 0.08); group.add(torso);
+  const legs = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.13, 16, 64), sharedMat);
+  legs.position.set(0, 0, -0.28); group.add(legs);
+  return group;
+}
+
+function makeCrystalMaterial(){
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x80d8ff, emissive: 0x002b4d, emissiveIntensity: 0.2,
+    roughness: 0.18, metalness: 0.06, transmission: 0.68, opacity: 0.9, transparent: true,
+    depthWrite: false, side: THREE.FrontSide
+  });
+}
+
+/* =========================================================================
+   5. GENERIC / EXTENSIBLE TRIGGER ANIMATION LIBRARY
+      Any +XXX token found in the Visualization cell maps to one of the
+      built-in animations below; unrecognized new tokens (+RAINBOW,
+      +WHATEVER, etc.) automatically get a generic glowing pulse + text
+      label so they are never silently ignored.
+   ========================================================================= */
+function getTriggerColor(name, override){
+  if (override) return override;
+  const map = { EGO:'#ffffff', LASER:'#00e5ff', HELIX:'#bb66ff', SPIRAL:'#bb66ff', TORUS_IN:'#00ffaa', TORUS_OUT:'#ff9900' };
+  return map[name] || '#ffd700';
+}
+
+function makeTextSprite(text, color){
+  const canvas = document.createElement('canvas'); canvas.width = 300; canvas.height = 70;
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 10;
+  ctx.fillText(text, 150, 36);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite:false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(0.95, 0.22, 1);
+  return sprite;
+}
+
+function buildEgoAnimation(root){
+  const mat = new THREE.MeshPhysicalMaterial({ color:0xffffff, roughness:0.05, metalness:0.1, transmission:0.95, ior:1.45, thickness:0.3, transparent:true, opacity:0.9, side:THREE.DoubleSide, depthWrite:false });
+  const geo = new THREE.SphereGeometry(0.95, 40, 40);
+  const mesh = new THREE.Mesh(geo, mat); mesh.scale.setScalar(0.001); root.add(mesh);
+  return {
+    update(t){ const s = 0.12 + (Math.sin(t*0.9)*0.5+0.5)*0.88; mesh.scale.setScalar(s); mesh.rotation.y = t*0.25; },
+    dispose(){ root.remove(mesh); geo.dispose(); mat.dispose(); }
+  };
+}
+function buildLaserAnimation(root, colorHex){
+  const color = new THREE.Color(colorHex || '#00e5ff');
+  const mat = new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending });
+  const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  const beams = dirs.map(d => {
+    const g = new THREE.Group();
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,1,8), mat); shaft.position.y = 0.5; g.add(shaft);
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.03,0.12,8), mat); head.position.y = 1.06; g.add(head);
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(...d));
+    root.add(g);
+    return { g, shaft, head };
+  });
+  return {
+    update(t){ const p = (t*0.6)%1.4; const len = Math.min(1, Math.max(0.02, p));
+      beams.forEach(b => { b.shaft.scale.y = len; b.shaft.position.y = len/2; b.head.position.y = len+0.06; b.head.visible = p<1.05; }); },
+    dispose(){ beams.forEach(b => root.remove(b.g)); mat.dispose(); }
+  };
+}
+function buildSpiralAnimation(root, colorHex){
+  const color = new THREE.Color(colorHex || '#bb66ff');
+  const N = 200;
+  const positions = new Float32Array(N*3);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending });
+  const line = new THREE.Line(geo, mat); root.add(line);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.035,12,12), new THREE.MeshBasicMaterial({ color:0xffffff }));
+  root.add(tip);
+  function pointAt(u){ const turns=4.5; const ang=u*turns*Math.PI*2; const r=0.05+u*0.5; const z=-0.5+u*2.1; return new THREE.Vector3(r*Math.cos(ang), r*Math.sin(ang), z); }
+  return {
+    update(t){ const p=(t*0.25)%1.3; const prog=Math.min(1,p); const count=Math.max(2,Math.floor(prog*N));
+      for (let i=0;i<count;i++){ const u=i/(N-1); const v=pointAt(u); positions[i*3]=v.x; positions[i*3+1]=v.y; positions[i*3+2]=v.z; }
+      geo.setDrawRange(0,count); geo.attributes.position.needsUpdate=true;
+      const tv=pointAt(prog); tip.position.copy(tv); tip.visible = prog<1; },
+    dispose(){ root.remove(line); root.remove(tip); geo.dispose(); mat.dispose(); }
+  };
+}
+function buildTorusAnimation(root, colorHex, dir){
+  const color = new THREE.Color(colorHex || (dir==='in' ? '#00ffaa' : '#ff9900'));
+  const mat = new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, side:THREE.DoubleSide });
+  const geo = new THREE.TorusGeometry(0.35, 0.03, 12, 48);
+  const mesh = new THREE.Mesh(geo, mat); mesh.rotation.x = Math.PI/2; root.add(mesh);
+  return {
+    update(t){ const p=(t*0.35)%1;
+      const startZ = dir==='in' ? 1.0 : -0.4, endZ = dir==='in' ? -0.4 : 1.3;
+      const startR = dir==='in' ? 0.5 : 0.15, endR = dir==='in' ? 0.15 : 0.9;
+      mesh.position.z = startZ + (endZ-startZ)*p;
+      const r = startR + (endR-startR)*p; mesh.scale.set(r/0.35, r/0.35, 1);
+      mat.opacity = 0.85*(1-Math.abs(p-0.5)*0.6); },
+    dispose(){ root.remove(mesh); geo.dispose(); mat.dispose(); }
+  };
+}
+function buildGenericPulseAnimation(root, colorHex, label){
+  const color = new THREE.Color(colorHex || '#ffd700');
+  const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.7, roughness:0.25, metalness:0.3 });
+  const geo = new THREE.IcosahedronGeometry(0.2, 0);
+  const mesh = new THREE.Mesh(geo, mat); mesh.position.set(0,0,0.9); root.add(mesh);
+  const sprite = makeTextSprite('+'+label, colorHex || '#ffd700'); sprite.position.set(0,0,1.25); root.add(sprite);
+  return {
+    update(t){ const s = 0.8+Math.sin(t*2.4)*0.25; mesh.scale.setScalar(s); mesh.rotation.y = t*0.8; },
+    dispose(){ root.remove(mesh); root.remove(sprite); geo.dispose(); mat.dispose(); }
+  };
+}
+function buildTriggerAnimation(name, root, colorHex){
+  switch(name){
+    case 'EGO': return buildEgoAnimation(root);
+    case 'LASER': return buildLaserAnimation(root, colorHex);
+    case 'HELIX': case 'SPIRAL': return buildSpiralAnimation(root, colorHex);
+    case 'TORUS_IN': return buildTorusAnimation(root, colorHex, 'in');
+    case 'TORUS_OUT': return buildTorusAnimation(root, colorHex, 'out');
+    default: return buildGenericPulseAnimation(root, colorHex, name);
+  }
+}
+
+/* =========================================================================
+   6. PER-CARD MINI 3D VISUALIZATION
+   ========================================================================= */
+function initCardViz(container, fields, triggers, statusEl){
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x03060d, 0.09);
 
@@ -609,30 +682,19 @@ function initCardViz(container, fields, statusEl){
   container.appendChild(renderer.domElement);
 
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.enableZoom = false;
-  controls.enablePan = false;
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 1.1;
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.enableZoom = false; controls.enablePan = false;
+  controls.autoRotate = true; controls.autoRotateSpeed = 1.1;
   controls.target.set(0, 0, 0.05);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
   const key = new THREE.DirectionalLight(0xfff6e5, 1.9); key.position.set(3,4,5); scene.add(key);
   const fill = new THREE.DirectionalLight(0x90c8ff, 1.0); fill.position.set(-3,-3,-2); scene.add(fill);
 
-  const crystalMat = new THREE.MeshPhysicalMaterial({
-    color: 0x80d8ff, emissive: 0x002b4d, emissiveIntensity: 0.2,
-    roughness: 0.18, metalness: 0.06, transmission: 0.68, opacity: 0.9, transparent: true,
-    depthWrite: false, side: THREE.FrontSide
-  });
-
+  const crystalMat = makeCrystalMaterial();
   const rootGroup = new THREE.Group();
   rootGroup.rotation.z = Math.PI / 2;
 
-  // Show a lightweight procedural placeholder immediately so the card is
-  // never blank, then swap in your real glass Buddha statue GLB (local file
-  // first, Google Drive as best-effort fallback) once it finishes loading.
   const placeholderBuddha = buildBuddhaStatue(crystalMat);
   rootGroup.add(placeholderBuddha);
   if (statusEl) statusEl.textContent = 'Đang tải mô hình Phật 3D…';
@@ -642,52 +704,37 @@ function initCardViz(container, fields, statusEl){
     fitBuddhaModelToScene(modelInstance);
     rootGroup.add(modelInstance);
     rootGroup.remove(placeholderBuddha);
-    if (statusEl) statusEl.textContent = '';
+    if (statusEl && !triggers.length) statusEl.textContent = '';
   }).catch((err) => {
     console.warn('Buddha GLB model could not be loaded from any source; keeping procedural placeholder.', err);
-    if (statusEl) statusEl.textContent = 'Không tải được mô hình GLB — dùng hình mẫu tạm thời';
+    if (statusEl && !triggers.length) statusEl.textContent = 'Không tải được mô hình GLB — dùng hình mẫu tạm thời';
   });
 
-  // Thủ Nhãn node: position from Visualization Coordinate, shape from Model, color from Color
-  let nodeColor;
-  try { nodeColor = new THREE.Color(fields.vizColor); } catch(e) { nodeColor = new THREE.Color(0xffd700); }
+  // Dharma-object marker from Visualization coordinate (if given)
+  if (fields.viz.coords) {
+    const [nx, ny, nz] = fields.viz.coords;
+    const markerColor = new THREE.Color(fields.viz.colorHex || '#ffd700');
+    const markerMat = new THREE.MeshPhysicalMaterial({ color: markerColor, emissive: markerColor, emissiveIntensity: 0.6, roughness: 0.2, metalness: 0.25 });
+    const markerMesh = new THREE.Mesh(new THREE.SphereGeometry(0.13, 24, 24), markerMat);
+    markerMesh.position.set(nx || 0, ny || 0, nz || 0);
+    rootGroup.add(markerMesh);
+    const markerLight = new THREE.PointLight(markerColor.getHex(), 1.2, 2);
+    markerLight.position.copy(markerMesh.position);
+    rootGroup.add(markerLight);
+  }
 
-  const nodeMat = new THREE.MeshPhysicalMaterial({
-    color: nodeColor, emissive: nodeColor, emissiveIntensity: 0.55,
-    roughness: 0.22, metalness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2
+  // Animation triggers from Visualization cell (+LASER, +EGO, +HELIX, +TORUS_IN,
+  // +TORUS_OUT, or any brand-new +xxx token)
+  const activeAnims = [];
+  triggers.forEach(trig => {
+    const anim = buildTriggerAnimation(trig, rootGroup, fields.viz.colorHex || getTriggerColor(trig));
+    if (anim) activeAnims.push(anim);
   });
-  const nodeGeo = buildDharmaNodeGeometry(fields.vizModel);
-  const nodeMesh = new THREE.Mesh(nodeGeo, nodeMat);
-  const [nx, ny, nz] = fields.vizCoord;
-  nodeMesh.position.set(nx || 0, ny || 0, nz || 0);
-  rootGroup.add(nodeMesh);
-
-  const nodeLight = new THREE.PointLight(nodeColor.getHex(), 1.4, 2.2);
-  nodeLight.position.copy(nodeMesh.position);
-  rootGroup.add(nodeLight);
-
-  const ringGeo = new THREE.RingGeometry(0.19, 0.22, 32);
-  const ringMat = new THREE.MeshBasicMaterial({ color: nodeColor, side: THREE.DoubleSide, transparent:true, opacity:0.85, blending: THREE.AdditiveBlending, depthWrite:false });
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.position.copy(nodeMesh.position);
-  rootGroup.add(ring);
+  if (triggers.length && statusEl) statusEl.textContent = `▶ Hiệu ứng: ${triggers.map(t=>'+'+t).join(' ')}`;
 
   scene.add(rootGroup);
 
-  // Optional: if the row's own Visualization-Model column points to a
-  // different .glb/.gltf, load that as the dharma-object node's shape,
-  // replacing the placeholder primitive once ready.
-  if (sharedGLTFLoader && /\.(glb|gltf)(\?.*)?$/i.test(fields.vizModel || '')) {
-    sharedGLTFLoader.load(fields.vizModel, (gltf) => {
-      const loaded = gltf.scene;
-      loaded.traverse(n => { if (n.isMesh) { n.material = nodeMat; } });
-      loaded.scale.set(0.3, 0.3, 0.3);
-      loaded.position.copy(nodeMesh.position);
-      rootGroup.add(loaded);
-      nodeMesh.visible = false;
-    }, undefined, () => { /* keep placeholder shape on error */ });
-  }
-
+  const clockStart = performance.now();
   let isVisible = true;
   let rafId = null;
 
@@ -710,7 +757,8 @@ function initCardViz(container, fields, statusEl){
   function animate(){
     if (!isVisible) { rafId = null; return; }
     rafId = requestAnimationFrame(animate);
-    ring.lookAt(camera.position);
+    const elapsed = (performance.now() - clockStart) / 1000;
+    activeAnims.forEach(a => a.update(elapsed));
     controls.update();
     renderer.render(scene, camera);
   }
@@ -719,10 +767,225 @@ function initCardViz(container, fields, statusEl){
   return {
     cleanup(){
       if (rafId) cancelAnimationFrame(rafId);
-      ro.disconnect();
-      io.disconnect();
-      renderer.dispose();
-      controls.dispose();
+      ro.disconnect(); io.disconnect();
+      activeAnims.forEach(a => a.dispose());
+      renderer.dispose(); controls.dispose();
+    }
+  };
+}
+
+/* =========================================================================
+   7. OVERVIEW PANEL — "COLUMN OF LIGHT SPIRAL" FOR THE WHOLE SEQUENCE
+      Activated when ANY row's Visualization cell contains one of
+      WHOLE_SEQUENCE_SPIRAL_TOKENS (default: +SPIRAL_ALL). Connects every
+      card in the current filtered/sorted PT.xxx sequence into one
+      continuous animated spiral of light around the Buddha, in order.
+   ========================================================================= */
+function autoHelixPosition(i, total){
+  const t = total <= 1 ? 0 : i/(total-1);
+  const radius = 0.15 + t*1.1;
+  const z = -0.4 + t*2.4;
+  const angle = i * 2.399963; // golden angle
+  return [radius*Math.cos(angle), radius*Math.sin(angle), z];
+}
+
+function buildOverviewNodes(extractedList){
+  const total = extractedList.length;
+  return extractedList.map((f, i) => ({
+    index: i,
+    t: total <= 1 ? 0 : i/(total-1),
+    label: f.c5Name || f.wbsid || `#${i+1}`,
+    coords: f.viz.coords || autoHelixPosition(i, total),
+    color: f.viz.colorHex || '#ffd700'
+  }));
+}
+
+function renderOverviewSection(container, extractedList, isActive){
+  if (!isActive) { container.innerHTML = ''; return; }
+  const nodes = buildOverviewNodes(extractedList);
+
+  container.innerHTML = `
+    <div class="overview-panel">
+      <button class="overview-toggle-pill" id="overviewToggleBtn">
+        <span>🌀 Cột Ánh Sáng Xoắn Ốc — Toàn Chuỗi (${nodes.length} nút)</span><span id="overviewCaret">▾</span>
+      </button>
+      <div class="overview-body" id="overviewBody" style="display:none;">
+        <div class="overview-canvas-wrap" id="overviewCanvasWrap"></div>
+        <div class="overview-controls">
+          <button id="ovPrev">◀ Nút trước</button>
+          <button id="ovPlayPause">▶ Chạy</button>
+          <button id="ovNext">Nút sau ▶</button>
+          <span class="overview-label" id="ovNodeLabel">Sẵn sàng — ${nodes.length} nút trong chuỗi</span>
+        </div>
+      </div>
+    </div>`;
+
+  const toggleBtn = document.getElementById('overviewToggleBtn');
+  const body = document.getElementById('overviewBody');
+  const caret = document.getElementById('overviewCaret');
+  let started = false;
+
+  toggleBtn.addEventListener('click', () => {
+    const willOpen = body.style.display === 'none';
+    body.style.display = willOpen ? 'block' : 'none';
+    caret.textContent = willOpen ? '▲' : '▾';
+    if (willOpen && !started) {
+      started = true;
+      overviewController = initOverviewViz(document.getElementById('overviewCanvasWrap'), nodes);
+    }
+  });
+}
+
+function initOverviewViz(container, nodes){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x04020a, 0.05);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 30);
+  camera.position.set(2.6, 3.0, 1.9);
+  camera.up.set(0, 0, 1);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.target.set(0, 0, 0.3);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const key = new THREE.DirectionalLight(0xfff6e5, 1.8); key.position.set(4,5,6); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x9060ff, 1.1); fill.position.set(-4,-4,-2); scene.add(fill);
+
+  const crystalMat = makeCrystalMaterial();
+  const rootGroup = new THREE.Group();
+  rootGroup.rotation.z = Math.PI/2;
+  const placeholderBuddha = buildBuddhaStatue(crystalMat);
+  rootGroup.add(placeholderBuddha);
+  loadSharedBuddhaModel().then((sceneRoot) => {
+    const modelInstance = sceneRoot.clone(true);
+    fitBuddhaModelToScene(modelInstance);
+    rootGroup.add(modelInstance);
+    rootGroup.remove(placeholderBuddha);
+  }).catch(() => { /* keep placeholder */ });
+  scene.add(rootGroup);
+
+  // Spline path through every node's coordinate, in sequence order
+  const curvePoints = nodes.map(n => new THREE.Vector3(n.coords[0], n.coords[1], n.coords[2]));
+  const curve = curvePoints.length >= 2 ? new THREE.CatmullRomCurve3(curvePoints) : null;
+  const SPLINE_RES = Math.max(300, nodes.length * 12);
+  const linePositions = new Float32Array(SPLINE_RES * 3);
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+  const lineMat = new THREE.LineBasicMaterial({ color: 0xbb66ff, transparent:true, opacity:0.95, blending: THREE.AdditiveBlending });
+  const spiralLine = new THREE.Line(lineGeo, lineMat);
+  rootGroup.add(spiralLine);
+
+  const travelTip = new THREE.Mesh(new THREE.SphereGeometry(0.05,16,16), new THREE.MeshBasicMaterial({ color:0xffffff }));
+  rootGroup.add(travelTip);
+
+  // Per-node markers + labels
+  const nodeMeshes = nodes.map(n => {
+    const color = new THREE.Color(n.color);
+    const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.15, roughness:0.3, metalness:0.2 });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 20), mat);
+    mesh.position.set(n.coords[0], n.coords[1], n.coords[2]);
+    rootGroup.add(mesh);
+    return { mesh, mat, node: n, lit:false };
+  });
+
+  let progress = 0;         // 0..1 continuous position along the whole spiral
+  let playing = false;
+  const speed = 0.10;       // progress units per second
+
+  function pointOnCurve(p){
+    if (!curve) return new THREE.Vector3(0,0,0);
+    return curve.getPoint(Math.min(1, Math.max(0, p)));
+  }
+
+  function updateVisual(){
+    const count = Math.max(2, Math.floor(progress * SPLINE_RES));
+    for (let i = 0; i < count; i++){
+      const u = i/(SPLINE_RES-1);
+      const v = pointOnCurve(u);
+      linePositions[i*3]=v.x; linePositions[i*3+1]=v.y; linePositions[i*3+2]=v.z;
+    }
+    lineGeo.setDrawRange(0, count);
+    lineGeo.attributes.position.needsUpdate = true;
+
+    const tip = pointOnCurve(progress);
+    travelTip.position.copy(tip);
+
+    let currentNode = null;
+    nodeMeshes.forEach(nm => {
+      const shouldLight = nm.node.t <= progress + 0.001;
+      if (shouldLight && !nm.lit) { nm.lit = true; nm.mat.emissiveIntensity = 0.9; nm.mesh.scale.setScalar(1.4); }
+      if (shouldLight) currentNode = nm.node;
+    });
+    const label = document.getElementById('ovNodeLabel');
+    if (label) label.textContent = currentNode ? `Đang tại: ${currentNode.label} (${currentNode.index+1}/${nodes.length})` : `Sẵn sàng — ${nodes.length} nút trong chuỗi`;
+  }
+  updateVisual();
+
+  const playPauseBtn = document.getElementById('ovPlayPause');
+  const prevBtn = document.getElementById('ovPrev');
+  const nextBtn = document.getElementById('ovNext');
+
+  function setPlaying(v){ playing = v; if (playPauseBtn) playPauseBtn.textContent = playing ? '⏸ Tạm dừng' : '▶ Chạy'; }
+  playPauseBtn && playPauseBtn.addEventListener('click', () => setPlaying(!playing));
+  prevBtn && prevBtn.addEventListener('click', () => {
+    setPlaying(false);
+    const idx = Math.max(0, Math.round(progress*(nodes.length-1)) - 1);
+    progress = nodes[idx] ? nodes[idx].t : 0;
+    updateVisual();
+  });
+  nextBtn && nextBtn.addEventListener('click', () => {
+    setPlaying(false);
+    const idx = Math.min(nodes.length-1, Math.round(progress*(nodes.length-1)) + 1);
+    progress = nodes[idx] ? nodes[idx].t : 1;
+    updateVisual();
+  });
+
+  let isVisible = true;
+  let rafId = null;
+  let lastT = performance.now();
+
+  function resize(){
+    const w = container.clientWidth || 1;
+    const h = container.clientHeight || 1;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  const ro = new ResizeObserver(resize);
+  ro.observe(container);
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => { isVisible = en.isIntersecting; if (isVisible && !rafId) animate(); });
+  }, { threshold: 0.05 });
+  io.observe(container);
+
+  function animate(){
+    if (!isVisible) { rafId = null; return; }
+    rafId = requestAnimationFrame(animate);
+    const now = performance.now();
+    const dt = Math.min(0.05, (now-lastT)/1000);
+    lastT = now;
+    if (playing) {
+      progress += dt*speed;
+      if (progress >= 1) { progress = 1; setPlaying(false); }
+      updateVisual();
+    }
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  return {
+    cleanup(){
+      if (rafId) cancelAnimationFrame(rafId);
+      ro.disconnect(); io.disconnect();
+      renderer.dispose(); controls.dispose();
     }
   };
 }
