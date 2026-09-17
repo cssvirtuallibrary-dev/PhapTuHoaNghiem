@@ -513,7 +513,7 @@ const AXES_DIRECTIONS = [
 // linear expanding radius from 1.35 (seat) up to 2.20 (crown+).
 function getSpiralPosition(i){
   const t = i;
-  const theta = Math.PI/2 + t * (Math.PI/2);
+  const theta = 0 + t * (Math.PI/2); // start on +X axis instead of +Y
   const z = -0.50 + t * 0.0625;
   const r = 1.35 + (z + 0.50) * 0.34;
   return new THREE.Vector3(r*Math.cos(theta), r*Math.sin(theta), z);
@@ -544,7 +544,7 @@ function buildColumnOfLightWallGeometry(maxT, segmentsPerNode){
       const p = getSpiralPosition(tPrev - 4);
       bPrevX = p.x; bPrevY = p.y; bPrevZ = p.z;
     } else {
-      const thetaPrev = Math.PI / 2 + tPrev * (Math.PI / 2);
+      const thetaPrev = 0 + tPrev * (Math.PI / 2); // start on +X axis
       const rBase = 1.35;
       bPrevX = rBase * Math.cos(thetaPrev);
       bPrevY = rBase * Math.sin(thetaPrev);
@@ -556,7 +556,7 @@ function buildColumnOfLightWallGeometry(maxT, segmentsPerNode){
       const p = getSpiralPosition(tCurr - 4);
       bCurrX = p.x; bCurrY = p.y; bCurrZ = p.z;
     } else {
-      const thetaCurr = Math.PI / 2 + tCurr * (Math.PI / 2);
+      const thetaCurr = 0 + tCurr * (Math.PI / 2); // start on +X axis
       const rBase = 1.35;
       bCurrX = rBase * Math.cos(thetaCurr);
       bCurrY = rBase * Math.sin(thetaCurr);
