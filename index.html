@@ -1091,6 +1091,12 @@ function initCardViz(container, fields, triggers, statusEl){
   rootGroup.add(placeholderBuddha);
   if (statusEl) statusEl.textContent = 'Đang tải mô hình Phật 3D…';
 
+  // Always-on coordinate axis labels (+X/-X/+Y/-Y/+Z/-Z) so orientation is
+  // unambiguous while orbiting the model.
+  const AXIS_LABEL_RADIUS = 1.8;
+  rootGroup.add(buildAxisLabelsGroup(AXIS_LABEL_RADIUS));
+  activeExtents.push(AXIS_LABEL_RADIUS + 0.3);
+
   loadSharedBuddhaModel().then((sceneRoot) => {
     const modelInstance = sceneRoot.clone(true);
     fitBuddhaModelToScene(modelInstance);
