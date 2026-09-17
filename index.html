@@ -157,6 +157,10 @@ const GVIZ_JSONP_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/
 // Tokens that request the whole-sequence "Column of Light Spiral" overview
 // panel to appear above the card feed for the currently filtered PT.xxx list.
 const WHOLE_SEQUENCE_SPIRAL_TOKENS = ['SPIRAL_ALL','COLUMN_ALL','SPIRAL_SEQUENCE','COLUMN_OF_LIGHT_ALL'];
+// Distinct internal key for whole-sequence tokens, kept separate from the
+// per-card 'COLUMN_OF_LIGHT' animation key so triggering one never
+// implicitly triggers the other.
+const COLUMN_OF_LIGHT_WHOLE_SEQUENCE_KEY = 'COLUMN_OF_LIGHT_WHOLE_SEQUENCE';
 
 let allRows = [];
 let filterOptions = [];
@@ -276,8 +280,11 @@ function normalizeTriggerName(name){
   if (n === 'HELIX' || n === 'XOAN_OC') return 'SPIRAL';
   if (n === 'TORUSIN' || n === 'NOI_TRIET') return 'TORUS_IN';
   if (n === 'TORUSOUT' || n === 'BIEN_CHIEU') return 'TORUS_OUT';
-  if (n === 'COLUMN' || n === 'LA_SPIRAL' || n === 'COT_ANH_SANG' || n === 'COLUMN_OF_LIGHT_ALL') return 'COLUMN_OF_LIGHT';
-  if (WHOLE_SEQUENCE_SPIRAL_TOKENS.includes(n)) return 'COLUMN_OF_LIGHT';
+  // Whole-sequence tokens resolve to their OWN key -- they only ever flag
+  // the overview panel, never the per-card animation.
+  if (WHOLE_SEQUENCE_SPIRAL_TOKENS.includes(n)) return COLUMN_OF_LIGHT_WHOLE_SEQUENCE_KEY;
+  // Per-card individual Column of Light trigger aliases.
+  if (n === 'COLUMN' || n === 'LA_SPIRAL' || n === 'COT_ANH_SANG' || n === 'COLUMN_OF_LIGHT') return 'COLUMN_OF_LIGHT';
   return n;
 }
 
@@ -435,7 +442,7 @@ function handleFilterSort(){
   const extracted = list.map(row => extractRowFields(row));
   extracted.forEach(f => { f.viz.triggers = f.viz.triggers.map(normalizeTriggerName); });
 
-  const wholeSeqTriggered = extracted.some(f => f.viz.triggers.includes('COLUMN_OF_LIGHT'));
+  const wholeSeqTriggered = extracted.some(f => f.viz.triggers.includes(COLUMN_OF_LIGHT_WHOLE_SEQUENCE_KEY));
   renderOverviewSection(overviewSection, wholeSeqTriggered);
 
   cardFeed.innerHTML = '';
@@ -444,7 +451,7 @@ function handleFilterSort(){
     cardEl.className = 'card';
     const comboText = (f.wbsid && f.a1Su) ? `${f.wbsid} – ${f.a1Su}` : (f.wbsid || f.a1Su || '');
 
-    const triggersForCard = f.viz.triggers;
+    const triggersForCard = f.viz.triggers.filter(t => t !== COLUMN_OF_LIGHT_WHOLE_SEQUENCE_KEY);
     const showPureImage = !!f.viz.imageUrl && triggersForCard.length === 0;
 
     cardEl.innerHTML = `
@@ -714,7 +721,9 @@ const BUDDHA_EXTRA_ROTATION_Z = Math.PI;   // yaw about the crown axis so the mo
                                             // +Z); set to 0 instead if your GLB's local front is
                                             // authored facing -Z, or to +/-Math.PI/2 to try the
                                             // other two cardinal yaw options if it still looks off.
-const BUDDHA_X_OFFSET = 0.2;   // Shift the Buddha model by +0.2 units along the +X axis
+const BUDDHA_X_OFFSET = -0.3;  // Net offset along X: was +0.2, shifted an additional -0.5 along -X
+                                // to align the (0,0,0) origin with the statue's anatomical
+                                // solar plexus.
 
 let buddhaModelLoadPromise = null;
 function loadSharedBuddhaModel(){
@@ -1081,12 +1090,6 @@ function initCardViz(container, fields, triggers, statusEl){
   const placeholderBuddha = buildBuddhaStatue(crystalMat);
   rootGroup.add(placeholderBuddha);
   if (statusEl) statusEl.textContent = 'Đang tải mô hình Phật 3D…';
-
-  // Always-on coordinate axis labels so orientation (+X/-X/+Y/-Y/+Z/-Z) is
-  // unambiguous while orbiting the model.
-  const AXIS_LABEL_RADIUS = 1.8;
-  rootGroup.add(buildAxisLabelsGroup(AXIS_LABEL_RADIUS));
-  activeExtents.push(AXIS_LABEL_RADIUS + 0.3);
 
   loadSharedBuddhaModel().then((sceneRoot) => {
     const modelInstance = sceneRoot.clone(true);
