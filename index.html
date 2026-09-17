@@ -721,10 +721,10 @@ const BUDDHA_EXTRA_ROTATION_Z = Math.PI/2; // yaw about the crown axis so the mo
                                             // Math.PI/2 moves it from -X to +Y as requested.)
                                             // If the front ever looks off after a model swap, try
                                             // 0 or -Math.PI/2 as the other two cardinal options.
-const BUDDHA_X_OFFSET = -0.1;  // Net offset along X: was -0.2, nudged an additional +0.1 along +X
+const BUDDHA_X_OFFSET = 0.0;   // Net offset along X: was -0.1, nudged an additional +0.1 along +X
                                 // to align the (0,0,0) origin with the statue's anatomical
                                 // solar plexus.
-const BUDDHA_Y_OFFSET = 0.1;   // Shift the Buddha model by +0.1 units along the +Y axis
+const BUDDHA_Y_OFFSET = 0.2;   // Net offset along Y: was 0.1, nudged an additional +0.1 along +Y
 
 let buddhaModelLoadPromise = null;
 function loadSharedBuddhaModel(){
