@@ -721,7 +721,7 @@ const BUDDHA_EXTRA_ROTATION_Z = Math.PI;   // yaw about the crown axis so the mo
                                             // +Z); set to 0 instead if your GLB's local front is
                                             // authored facing -Z, or to +/-Math.PI/2 to try the
                                             // other two cardinal yaw options if it still looks off.
-const BUDDHA_X_OFFSET = -0.3;  // Net offset along X: was +0.2, shifted an additional -0.5 along -X
+const BUDDHA_X_OFFSET = -0.5;  // Net offset along X: was -0.3, nudged an additional -0.2 along -X
                                 // to align the (0,0,0) origin with the statue's anatomical
                                 // solar plexus.
 
@@ -1076,7 +1076,7 @@ function initCardViz(container, fields, triggers, statusEl){
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08;
   controls.enableZoom = false; controls.enablePan = false;
-  controls.autoRotate = true; controls.autoRotateSpeed = 0.5; // halved per request
+  controls.autoRotate = false; controls.autoRotateSpeed = 0.5; // auto-rotation disabled per request
   controls.target.set(0, 0, 0.25);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.5));
