@@ -870,35 +870,58 @@ function buildTorusAnimation(root, direction, colorOverride){
 // +COLUMN_OF_LIGHT — the Column of Light spiral WALL, built with the exact
 // same ribbon geometry as the original Lotus Bodhicitta System
 // (rebuildWallGeometry / getSpiralPosition), individually triggerable per
-// card. The wall continuously grows upward turn by turn, then loops.
+// card. Runs as a discrete 40-NODE STEP animation: the wall snaps outward
+// to include one more node, then holds/pauses there (each node sits on a
+// cardinal axis — +X, +Y, -X, -Y — cycling as it spirals upward), before
+// stepping to the next node. After the 40th node it holds briefly, then
+// resets back to the base and repeats.
 function buildColumnOfLightAnimation(root, colorOverride){
-  const MAX_TURN_T = 10 * 4; // 10 full turns worth of wall sweep
-  const CYCLE_SECONDS = 10;  // time to grow from bare seat to full height, then restart
+  const NODE_COUNT = COLUMN_OF_LIGHT_NODE_COUNT; // 40 discrete steps/nodes
+  const DWELL_SECONDS = 0.55;   // pause duration held at each node/axis
+  const STEP_SECONDS = 0.65;    // total time per node (includes the pause)
+  const END_HOLD_SECONDS = 1.4; // extra pause once fully built, before looping
+  const CYCLE_SECONDS = NODE_COUNT * STEP_SECONDS + END_HOLD_SECONDS;
 
   const mat = makeColumnOfLightWallMaterial(colorOverride);
   let wallMesh = new THREE.Mesh(buildColumnOfLightWallGeometry(0), mat);
   root.add(wallMesh);
 
   const tipColor = colorOverride ? new THREE.Color(colorOverride) : new THREE.Color(0xfff6c8);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 16), new THREE.MeshBasicMaterial({ color: tipColor }));
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 16), new THREE.MeshBasicMaterial({ color: tipColor }));
   root.add(tip);
-  const tipLight = new THREE.PointLight(tipColor.getHex(), 1.1, 2.4);
+  const tipLight = new THREE.PointLight(tipColor.getHex(), 1.3, 2.6);
   root.add(tipLight);
+
+  let lastStepIndex = -1;
 
   return {
     extent: 2.6,
     update(t){
-      const prog = (t % CYCLE_SECONDS) / CYCLE_SECONDS;
-      const maxT = prog * MAX_TURN_T;
+      const cycleT = t % CYCLE_SECONDS;
+      // stepIndex counts how many nodes are currently "built" (0..NODE_COUNT)
+      const stepIndex = Math.min(NODE_COUNT, Math.floor(cycleT / STEP_SECONDS) + 1);
+      const withinEndHold = cycleT >= NODE_COUNT * STEP_SECONDS;
+      const maxT = withinEndHold ? NODE_COUNT : stepIndex;
 
-      wallMesh.geometry.dispose();
-      wallMesh.geometry = buildColumnOfLightWallGeometry(maxT);
+      // Only rebuild geometry when the step actually advances (discrete jump,
+      // then hold in place for the remainder of STEP_SECONDS -- this is what
+      // produces the "pausing momentarily at each axis" stepping look).
+      if (maxT !== lastStepIndex) {
+        lastStepIndex = maxT;
+        wallMesh.geometry.dispose();
+        wallMesh.geometry = buildColumnOfLightWallGeometry(maxT);
+      }
 
       const tv = getSpiralPosition(maxT);
       tip.position.copy(tv);
       tipLight.position.copy(tv);
       tip.visible = maxT > 0.02;
       tipLight.visible = tip.visible;
+
+      // Gentle pulse on the tip while paused at each node/axis, so the pause
+      // still reads as "alive" rather than fully static.
+      const pulse = 1.0 + Math.sin(t * 6.0) * 0.18;
+      tip.scale.setScalar(pulse);
     },
     dispose(){
       root.remove(wallMesh); wallMesh.geometry.dispose(); mat.dispose();
