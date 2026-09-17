@@ -721,9 +721,10 @@ const BUDDHA_EXTRA_ROTATION_Z = Math.PI/2; // yaw about the crown axis so the mo
                                             // Math.PI/2 moves it from -X to +Y as requested.)
                                             // If the front ever looks off after a model swap, try
                                             // 0 or -Math.PI/2 as the other two cardinal options.
-const BUDDHA_X_OFFSET = -0.2;  // Net offset along X: was -0.5, nudged an additional +0.3 along +X
+const BUDDHA_X_OFFSET = -0.1;  // Net offset along X: was -0.2, nudged an additional +0.1 along +X
                                 // to align the (0,0,0) origin with the statue's anatomical
                                 // solar plexus.
+const BUDDHA_Y_OFFSET = 0.1;   // Shift the Buddha model by +0.1 units along the +Y axis
 
 let buddhaModelLoadPromise = null;
 function loadSharedBuddhaModel(){
@@ -743,7 +744,7 @@ function loadSharedBuddhaModel(){
 
 // Auto-fit: rescale to exactly BUDDHA_TARGET_HEIGHT, then reposition so the
 // base sits precisely at BUDDHA_SEAT_Z and the figure is shifted by
-// BUDDHA_X_OFFSET along +X — keeping every animation (bubble, torus, laser,
+// BUDDHA_X_OFFSET along +X and BUDDHA_Y_OFFSET along +Y — keeping every animation (bubble, torus, laser,
 // spiral, column of light) correctly aligned regardless of the GLB's
 // native scale/pivot.
 function fitBuddhaModelToScene(object3D){
@@ -764,6 +765,7 @@ function fitBuddhaModelToScene(object3D){
   object3D.position.x -= center.x;
   object3D.position.x += BUDDHA_X_OFFSET;
   object3D.position.y -= center.y;
+  object3D.position.y += BUDDHA_Y_OFFSET;
   object3D.position.z -= box.min.z;
   object3D.position.z += BUDDHA_SEAT_Z;
 }
@@ -780,7 +782,7 @@ function makeCrystalMaterial(){
 // front/back or left/right of its own), positioned on the SAME
 // Crown=1.0 / Seat=-0.5
 // coordinate convention as the GLB fit (also shifted by BUDDHA_X_OFFSET
-// along +X), so triggers line up identically whichever Buddha
+// along +X and BUDDHA_Y_OFFSET along +Y), so triggers line up identically whichever Buddha
 // representation is currently active.
 function buildBuddhaStatue(sharedMat){
   const group = new THREE.Group();
@@ -793,6 +795,7 @@ function buildBuddhaStatue(sharedMat){
   const legs = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.13, 16, 64), sharedMat);
   legs.position.set(0, 0, -0.28); group.add(legs);
   group.position.x += BUDDHA_X_OFFSET;
+  group.position.y += BUDDHA_Y_OFFSET;
   return group;
 }
 
