@@ -249,9 +249,12 @@ function parseCoordinates(coordStr){
      - One of WHOLE_SEQUENCE_SPIRAL_TOKENS -> flags the ENTIRE filtered
        PT.xxx sequence to show the combined Column of Light Spiral overview
    ------------------------------------------------------------------------- */
+// Fallback image shown whenever a row's Visualization cell is blank.
+const DEFAULT_VISUALIZATION_IMAGE_URL = getDriveDirectImageUrl('https://drive.google.com/file/d/1C9OUE95LNiVz0fq7L8JgiebQVMgEZzGl/view?usp=drive_link');
+
 function parseVisualizationCell(raw){
   const text = cleanText(raw);
-  if (!text) return { raw:'', imageUrl:'', triggers:[], coords:null, colorHex:'' };
+  if (!text) return { raw:'', imageUrl: DEFAULT_VISUALIZATION_IMAGE_URL, triggers:[], coords:null, colorHex:'' };
   let working = text;
 
   const urlMatch = working.match(/https?:\/\/\S+/i);
