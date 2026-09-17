@@ -509,6 +509,58 @@ const AXES_DIRECTIONS = [
   { dir: () => new THREE.Vector3(0,0,-1), col: 0x00e5ff }
 ];
 
+// Always-on coordinate axis labels (+X / -X / +Y / -Y / +Z / -Z), so it's
+// unambiguous which direction is which while orbiting the scene. Colors
+// match the existing +LASER / +SPIRAL trigger convention: X=red, Y=green,
+// Z=cyan. Sprites always face the camera automatically (THREE.Sprite).
+function makeAxisLabelSprite(text, hexColor){
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillStyle = hexColor; ctx.shadowColor = hexColor; ctx.shadowBlur = 6;
+  ctx.fillText(text, 64, 32);
+  ctx.shadowBlur = 0;
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  return sprite;
+}
+
+const AXIS_LABEL_SPECS = [
+  { text: '+X', dir: [1,0,0],  colorHex: '#ff6666' },
+  { text: '-X', dir: [-1,0,0], colorHex: '#ff6666' },
+  { text: '+Y', dir: [0,1,0],  colorHex: '#66ff99' },
+  { text: '-Y', dir: [0,-1,0], colorHex: '#66ff99' },
+  { text: '+Z', dir: [0,0,1],  colorHex: '#66ccff' },
+  { text: '-Z', dir: [0,0,-1], colorHex: '#66ccff' }
+];
+
+function buildAxisLabelsGroup(radius, spriteScale){
+  radius = radius || 1.6;
+  spriteScale = spriteScale || 0.42;
+  const group = new THREE.Group();
+  group.renderOrder = 50;
+
+  AXIS_LABEL_SPECS.forEach(spec => {
+    const color = new THREE.Color(spec.colorHex);
+    const lineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.55 });
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0,0,0),
+      new THREE.Vector3(spec.dir[0]*radius, spec.dir[1]*radius, spec.dir[2]*radius)
+    ]);
+    group.add(new THREE.Line(lineGeo, lineMat));
+
+    const sprite = makeAxisLabelSprite(spec.text, spec.colorHex);
+    sprite.position.set(spec.dir[0]*radius*1.08, spec.dir[1]*radius*1.08, spec.dir[2]*radius*1.08);
+    sprite.scale.set(spriteScale, spriteScale*0.5, 1);
+    group.add(sprite);
+  });
+
+  return group;
+}
+
 // Column of Light spiral: exact same calibrated geometry as the source system —
 // counter-clockwise turns starting on +Y, 4 nodes per 0.25 unit height,
 // linear expanding radius from 1.35 (seat) up to 2.20 (crown+).
@@ -1030,6 +1082,12 @@ function initCardViz(container, fields, triggers, statusEl){
   rootGroup.add(placeholderBuddha);
   if (statusEl) statusEl.textContent = 'Đang tải mô hình Phật 3D…';
 
+  // Always-on coordinate axis labels so orientation (+X/-X/+Y/-Y/+Z/-Z) is
+  // unambiguous while orbiting the model.
+  const AXIS_LABEL_RADIUS = 1.8;
+  rootGroup.add(buildAxisLabelsGroup(AXIS_LABEL_RADIUS));
+  activeExtents.push(AXIS_LABEL_RADIUS + 0.3);
+
   loadSharedBuddhaModel().then((sceneRoot) => {
     const modelInstance = sceneRoot.clone(true);
     fitBuddhaModelToScene(modelInstance);
@@ -1182,6 +1240,10 @@ function initOverviewViz(container){
     rootGroup.remove(placeholderBuddha);
   }).catch(() => { /* keep placeholder */ });
   scene.add(rootGroup);
+
+  // Always-on coordinate axis labels so orientation (+X/-X/+Y/-Y/+Z/-Z) is
+  // unambiguous while orbiting the full Column of Light spiral.
+  rootGroup.add(buildAxisLabelsGroup(3.0, 0.55));
 
   // 40 calibrated node markers + progressive spiral line, exactly matching getSpiralPosition()
   const nodePositions = [];
