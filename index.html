@@ -58,16 +58,16 @@
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
   /* ============ OVERVIEW: COLUMN OF LIGHT SPIRAL (WHOLE SEQUENCE) ============ */
-  .overview-panel{ margin-bottom:18px; border-radius:16px; border:1px solid rgba(187,102,255,.35); background:linear-gradient(180deg, rgba(30,10,50,.35), rgba(10,6,20,.55)); overflow:hidden; box-shadow:0 6px 24px rgba(120,0,255,.15); }
-  .overview-toggle-pill{ width:100%; text-align:left; padding:12px 16px; background:transparent; border:none; color:#e1bee7; font-weight:800; font-size:.92rem; cursor:pointer; display:flex; align-items:center; justify-content:space-between; letter-spacing:.3px; }
-  .overview-toggle-pill:hover{ background:rgba(187,102,255,.08); }
-  .overview-body{ border-top:1px solid rgba(187,102,255,.25); }
-  .overview-canvas-wrap{ position:relative; width:100%; height:340px; background:radial-gradient(circle at 50% 40%, #140a24 0%, #04020a 70%, #010005 100%); touch-action:none; }
+  .overview-panel{ margin-bottom:18px; border-radius:16px; border:1px solid rgba(255,215,0,.35); background:linear-gradient(180deg, rgba(40,30,6,.35), rgba(10,8,4,.55)); overflow:hidden; box-shadow:0 6px 24px rgba(255,180,0,.15); }
+  .overview-toggle-pill{ width:100%; text-align:left; padding:12px 16px; background:transparent; border:none; color:#ffe9a8; font-weight:800; font-size:.92rem; cursor:pointer; display:flex; align-items:center; justify-content:space-between; letter-spacing:.3px; }
+  .overview-toggle-pill:hover{ background:rgba(255,215,0,.08); }
+  .overview-body{ border-top:1px solid rgba(255,215,0,.25); }
+  .overview-canvas-wrap{ position:relative; width:100%; height:340px; background:radial-gradient(circle at 50% 40%, #241a04 0%, #04020a 70%, #010005 100%); touch-action:none; }
   .overview-canvas-wrap canvas{ display:block; width:100%; height:100%; }
-  .overview-controls{ display:flex; align-items:center; gap:10px; padding:10px 14px; flex-wrap:wrap; background:rgba(10,6,20,.5); }
-  .overview-controls button{ background:rgba(187,102,255,.15); border:1px solid rgba(187,102,255,.45); color:#e1bee7; padding:7px 13px; border-radius:8px; font-weight:700; font-size:.82rem; cursor:pointer; }
-  .overview-controls button:hover{ background:rgba(187,102,255,.3); }
-  .overview-label{ font-size:.82rem; color:#d1c4e9; font-weight:600; margin-left:auto; }
+  .overview-controls{ display:flex; align-items:center; gap:10px; padding:10px 14px; flex-wrap:wrap; background:rgba(10,8,4,.5); }
+  .overview-controls button{ background:rgba(255,215,0,.15); border:1px solid rgba(255,215,0,.45); color:#ffe9a8; padding:7px 13px; border-radius:8px; font-weight:700; font-size:.82rem; cursor:pointer; }
+  .overview-controls button:hover{ background:rgba(255,215,0,.3); }
+  .overview-label{ font-size:.82rem; color:#ffe9a8; font-weight:600; margin-left:auto; }
   @media (min-width:680px){ .overview-canvas-wrap{ height:440px; } }
 
   /* ================= CARD STRUCTURE ================= */
@@ -76,13 +76,13 @@
     background:rgba(255,236,179,.10); border:1px solid rgba(255,236,179,.26); padding:7px 14px; border-radius:24px; font-weight:700; letter-spacing:.3px; word-break:break-word; }
 
   .card-split{ display:flex; flex-direction:column; width:100%; }
-  .viz-pane{ position:relative; width:100%; height:300px; background:radial-gradient(circle at 50% 40%, var(--viz-bg-a) 0%, var(--viz-bg-b) 70%, #010206 100%); touch-action:none; overflow:hidden; }
+  .viz-pane{ position:relative; width:100%; height:320px; background:radial-gradient(circle at 50% 40%, var(--viz-bg-a) 0%, var(--viz-bg-b) 70%, #010206 100%); touch-action:none; overflow:hidden; }
   .instr-pane{ width:100%; padding:16px 16px 22px 16px; display:flex; flex-direction:column; }
 
   @media (orientation:landscape){
     .card-split{ flex-direction:row; align-items:stretch; }
-    .viz-pane{ width:44%; height:auto; min-height:420px; flex-shrink:0; }
-    .instr-pane{ width:56%; border-left:1px solid rgba(255,255,255,.06); }
+    .viz-pane{ width:46%; height:auto; min-height:440px; flex-shrink:0; }
+    .instr-pane{ width:54%; border-left:1px solid rgba(255,255,255,.06); }
   }
   @media (orientation:landscape) and (max-height:520px){ .viz-pane{ min-height:320px; } }
 
@@ -154,10 +154,9 @@ const TAB_NAME = 'WBSID';
 const GVIZ_URL       = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(TAB_NAME)}`;
 const GVIZ_JSONP_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:handleGvizData&sheet=${encodeURIComponent(TAB_NAME)}`;
 
-// Trigger tokens that mean "run the WHOLE filtered sequence as one continuous
-// Column of Light Spiral" (place this token in the Visualization cell of any
-// row within the sequence you want to enable it for).
-const WHOLE_SEQUENCE_SPIRAL_TOKENS = ['SPIRAL_ALL', 'COLUMN_ALL', 'SPIRAL_SEQUENCE', 'COLUMN_OF_LIGHT'];
+// Tokens that request the whole-sequence "Column of Light Spiral" overview
+// panel to appear above the card feed for the currently filtered PT.xxx list.
+const WHOLE_SEQUENCE_SPIRAL_TOKENS = ['SPIRAL_ALL','COLUMN_ALL','SPIRAL_SEQUENCE','COLUMN_OF_LIGHT_ALL'];
 
 let allRows = [];
 let filterOptions = [];
@@ -236,19 +235,15 @@ function parseCoordinates(coordStr){
 
 /* -------------------------------------------------------------------------
    VISUALIZATION CELL PARSER
-   The Google Sheet header "Visualization" can contain, in any combination:
-     - A Google Drive (or plain http) image link         -> displayed as image
-     - One or more animation triggers like +LASER, +EGO,
-       +HELIX, +TORUS_IN, +TORUS_OUT, or any brand new +xxx -> loads the
-       Buddha 3D model and plays the matching animation (or a generic
-       glowing-pulse animation + label for unrecognized new triggers)
-     - A "x, y, z" coordinate                              -> places a small
-       glowing dharma-object marker at that position on the Buddha
-     - A #hexcolor                                         -> tints the marker
-       and/or the animation associated with this row
-     - One of WHOLE_SEQUENCE_SPIRAL_TOKENS (e.g. +SPIRAL_ALL) -> does NOT run
-       on this card; instead it flags the entire filtered PT.xxx sequence to
-       offer the combined "Column of Light Spiral" overview animation.
+   The "Visualization" column can contain, in any combination:
+     - A Google Drive / http image link  -> displayed directly as an image
+     - One or more +TRIGGER tokens (+EGO, +LASER, +HELIX/+SPIRAL,
+       +TORUS_IN, +TORUS_OUT, +COLUMN_OF_LIGHT, or any brand-new +xxx)
+       -> loads the shared Buddha 3D model and plays the matching animation
+     - An "x, y, z" coordinate -> places a small glowing dharma-object marker
+     - A #hexcolor -> tints the marker / animation for this row
+     - One of WHOLE_SEQUENCE_SPIRAL_TOKENS -> flags the ENTIRE filtered
+       PT.xxx sequence to show the combined Column of Light Spiral overview
    ------------------------------------------------------------------------- */
 function parseVisualizationCell(raw){
   const text = cleanText(raw);
@@ -272,6 +267,18 @@ function parseVisualizationCell(raw){
   const imageUrl = url ? getDriveDirectImageUrl(url) : '';
 
   return { raw:text, imageUrl, triggers, coords, colorHex };
+}
+
+/* Normalize alias trigger names to a single canonical animation key */
+function normalizeTriggerName(name){
+  const n = name.toUpperCase();
+  if (n === 'BUBBLE') return 'EGO';
+  if (n === 'HELIX' || n === 'XOAN_OC') return 'SPIRAL';
+  if (n === 'TORUSIN' || n === 'NOI_TRIET') return 'TORUS_IN';
+  if (n === 'TORUSOUT' || n === 'BIEN_CHIEU') return 'TORUS_OUT';
+  if (n === 'COLUMN' || n === 'LA_SPIRAL' || n === 'COT_ANH_SANG' || n === 'COLUMN_OF_LIGHT_ALL') return 'COLUMN_OF_LIGHT';
+  if (WHOLE_SEQUENCE_SPIRAL_TOKENS.includes(n)) return 'COLUMN_OF_LIGHT';
+  return n;
 }
 
 /* =========================================================================
@@ -384,7 +391,6 @@ function extractRowFields(row){
   const c4RawImg = findValue(row, /C4.*Link/i) || findValue(row, /C4.*Image/i) || findExact(row, /^C4\b/i);
   const c4Img = getDriveDirectImageUrl(c4RawImg);
 
-  // Single consolidated "Visualization" column drives the left/top pane.
   const vizRaw = findExact(row, /^Visualization\b/i) || findValue(row, /Visualization/i);
   const viz = parseVisualizationCell(vizRaw);
 
@@ -426,11 +432,11 @@ function handleFilterSort(){
     return;
   }
 
-  // Pre-extract fields once; reused by both the overview panel and the cards.
   const extracted = list.map(row => extractRowFields(row));
+  extracted.forEach(f => { f.viz.triggers = f.viz.triggers.map(normalizeTriggerName); });
 
-  const wholeSeqTriggered = extracted.some(f => f.viz.triggers.some(t => WHOLE_SEQUENCE_SPIRAL_TOKENS.includes(t)));
-  renderOverviewSection(overviewSection, extracted, wholeSeqTriggered);
+  const wholeSeqTriggered = extracted.some(f => f.viz.triggers.includes('COLUMN_OF_LIGHT'));
+  renderOverviewSection(overviewSection, wholeSeqTriggered);
 
   cardFeed.innerHTML = '';
   extracted.forEach((f, i) => {
@@ -438,7 +444,7 @@ function handleFilterSort(){
     cardEl.className = 'card';
     const comboText = (f.wbsid && f.a1Su) ? `${f.wbsid} – ${f.a1Su}` : (f.wbsid || f.a1Su || '');
 
-    const triggersForCard = f.viz.triggers.filter(t => !WHOLE_SEQUENCE_SPIRAL_TOKENS.includes(t));
+    const triggersForCard = f.viz.triggers.filter(t => t !== 'COLUMN_OF_LIGHT' || true); // keep COLUMN_OF_LIGHT usable per-card too
     const showPureImage = !!f.viz.imageUrl && triggersForCard.length === 0;
 
     cardEl.innerHTML = `
@@ -489,7 +495,65 @@ function handleFilterSort(){
 }
 
 /* =========================================================================
-   4. SHARED BUDDHA MODEL LOADER
+   4. SHARED CONSTANTS — faithfully ported from the original Lotus
+      Bodhicitta System (Buddha coordinate convention: Crown = Z 1.0,
+      Lotus Seat = Z -0.5, Heart/center ≈ Z 0.25).
+   ========================================================================= */
+const AXES_DIRECTIONS = [
+  { dir: () => new THREE.Vector3(1,0,0),  col: 0xff4444 },
+  { dir: () => new THREE.Vector3(-1,0,0), col: 0xff4444 },
+  { dir: () => new THREE.Vector3(0,1,0),  col: 0x00ff88 },
+  { dir: () => new THREE.Vector3(0,-1,0), col: 0x00ff88 },
+  { dir: () => new THREE.Vector3(0,0,1),  col: 0x00e5ff },
+  { dir: () => new THREE.Vector3(0,0,-1), col: 0x00e5ff }
+];
+
+// Column of Light spiral: exact same calibrated geometry as the source system —
+// counter-clockwise turns starting on +Y, 4 nodes per 0.25 unit height,
+// linear expanding radius from 1.35 (seat) up to 2.20 (crown+).
+function getSpiralPosition(i){
+  const t = i;
+  const theta = Math.PI/2 + t * (Math.PI/2);
+  const z = -0.50 + t * 0.0625;
+  const r = 1.35 + (z + 0.50) * 0.34;
+  return new THREE.Vector3(r*Math.cos(theta), r*Math.sin(theta), z);
+}
+const COLUMN_OF_LIGHT_NODE_COUNT = 40;
+
+// True circular Horn Torus evaluator (Torus In stays inside the R=2.1 Bubble
+// of Ego; Torus Out erupts higher/wider than the bubble) — same math as source.
+function evaluateHornTorusPoint(tau, azimuth, direction){
+  const Z_c = 0.25, H = 0.75, R_core = 0.04;
+  let r, z;
+  if (direction === 'in') {
+    const R_max = 1.65;
+    const R_0 = (R_max*R_max - H*H) / (2.0*R_max);
+    const r_circ = R_max - R_0;
+    const alpha_top = Math.PI - Math.asin(H / r_circ);
+    if (tau < 0.35) { const s = tau/0.35; z = 1.0 - s*1.5; r = R_core; }
+    else { const s = (tau-0.35)/0.65; const alpha = -alpha_top + s*(2.0*alpha_top);
+      r = Math.max(R_core, R_0 + r_circ*Math.cos(alpha)); z = Z_c + r_circ*Math.sin(alpha); }
+  } else {
+    const r_circ = 2.05;
+    const R_0 = Math.sqrt(r_circ*r_circ - H*H);
+    const alpha_top = Math.PI - Math.asin(H / r_circ);
+    if (tau < 0.35) { const s = tau/0.35; z = -0.5 + s*1.5; r = R_core; }
+    else { const s = (tau-0.35)/0.65; const alpha = alpha_top - s*(2.0*alpha_top);
+      r = Math.max(R_core, R_0 + r_circ*Math.cos(alpha)); z = Z_c + r_circ*Math.sin(alpha); }
+  }
+  return { x: r*Math.cos(azimuth), y: r*Math.sin(azimuth), z };
+}
+
+function createOuterBubbleGeometry(phiLength, widthSegs, heightSegs){
+  const geo = new THREE.SphereGeometry(2.1, widthSegs, heightSegs, 0, phiLength);
+  geo.rotateX(Math.PI/2); geo.rotateZ(-Math.PI/2);
+  return geo;
+}
+
+/* =========================================================================
+   5. SHARED BUDDHA MODEL LOADER
+      Coordinate convention matches the animation math above: model is fit
+      so its base sits at Z = -0.5 (Lotus Seat) and its crown reaches Z = 1.0.
    ========================================================================= */
 const sharedGLTFLoader = ('THREE' in window && THREE.GLTFLoader) ? new THREE.GLTFLoader() : null;
 
@@ -500,9 +564,10 @@ const BUDDHA_MODEL_CANDIDATES = [
   `https://drive.google.com/uc?export=download&id=${BUDDHA_DRIVE_FILE_ID}`,
   `https://drive.usercontent.google.com/download?id=${BUDDHA_DRIVE_FILE_ID}&export=download&confirm=t`
 ];
-const BUDDHA_TARGET_HEIGHT    = 1.55;
-const BUDDHA_GROUND_Z         = -0.35;
-const BUDDHA_EXTRA_ROTATION_X = Math.PI/2;
+const BUDDHA_SEAT_Z  = -0.5;   // Lotus Seat, base of the statue
+const BUDDHA_CROWN_Z = 1.0;    // Crown, top of the statue
+const BUDDHA_TARGET_HEIGHT = BUDDHA_CROWN_Z - BUDDHA_SEAT_Z; // 1.5 units, matches all trigger math
+const BUDDHA_EXTRA_ROTATION_X = Math.PI/2; // most GLB exports are Y-up; this scene is Z-up
 
 let buddhaModelLoadPromise = null;
 function loadSharedBuddhaModel(){
@@ -520,8 +585,13 @@ function loadSharedBuddhaModel(){
   return buddhaModelLoadPromise;
 }
 
+// Auto-fit: rescale to exactly BUDDHA_TARGET_HEIGHT, then reposition so the
+// base sits precisely at BUDDHA_SEAT_Z — keeping every animation (bubble,
+// torus, laser, spiral, column of light) correctly aligned regardless of
+// the GLB's native scale/pivot.
 function fitBuddhaModelToScene(object3D){
-  object3D.rotation.x = BUDDHA_EXTRA_ROTATION_X;
+  object3D.rotation.order = 'ZYX';
+  object3D.rotation.set(BUDDHA_EXTRA_ROTATION_X, 0, 0);
   object3D.updateMatrixWorld(true);
   let box = new THREE.Box3().setFromObject(object3D);
   let size = new THREE.Vector3(); box.getSize(size);
@@ -534,9 +604,20 @@ function fitBuddhaModelToScene(object3D){
   object3D.position.x -= center.x;
   object3D.position.y -= center.y;
   object3D.position.z -= box.min.z;
-  object3D.position.z += BUDDHA_GROUND_Z;
+  object3D.position.z += BUDDHA_SEAT_Z;
 }
 
+function makeCrystalMaterial(){
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x80d8ff, emissive: 0x002b4d, emissiveIntensity: 0.2,
+    roughness: 0.16, metalness: 0.08, transmission: 0.72, opacity: 0.88, transparent: true,
+    depthWrite: false, side: THREE.FrontSide
+  });
+}
+
+// Procedural placeholder statue, positioned on the SAME Crown=1.0 / Seat=-0.5
+// coordinate convention as the GLB fit, so triggers line up identically
+// whichever Buddha representation is currently active.
 function buildBuddhaStatue(sharedMat){
   const group = new THREE.Group();
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 32, 32), sharedMat);
@@ -550,132 +631,245 @@ function buildBuddhaStatue(sharedMat){
   return group;
 }
 
-function makeCrystalMaterial(){
-  return new THREE.MeshPhysicalMaterial({
-    color: 0x80d8ff, emissive: 0x002b4d, emissiveIntensity: 0.2,
-    roughness: 0.18, metalness: 0.06, transmission: 0.68, opacity: 0.9, transparent: true,
-    depthWrite: false, side: THREE.FrontSide
-  });
-}
-
 /* =========================================================================
-   5. GENERIC / EXTENSIBLE TRIGGER ANIMATION LIBRARY
-      Any +XXX token found in the Visualization cell maps to one of the
-      built-in animations below; unrecognized new tokens (+RAINBOW,
-      +WHATEVER, etc.) automatically get a generic glowing pulse + text
-      label so they are never silently ignored.
+   6. TRIGGER ANIMATION LIBRARY (per-card, lightweight ports of the full
+      Lotus Bodhicitta System animations). Any recognized +XXX token below
+      maps to a faithful animation; any brand-new, unrecognized +xxx token
+      still loads the Buddha model and gets a generic glowing pulse + label
+      so nothing entered in the sheet is ever silently ignored.
    ========================================================================= */
-function getTriggerColor(name, override){
-  if (override) return override;
-  const map = { EGO:'#ffffff', LASER:'#00e5ff', HELIX:'#bb66ff', SPIRAL:'#bb66ff', TORUS_IN:'#00ffaa', TORUS_OUT:'#ff9900' };
-  return map[name] || '#ffd700';
-}
 
-function makeTextSprite(text, color){
-  const canvas = document.createElement('canvas'); canvas.width = 300; canvas.height = 70;
-  const ctx = canvas.getContext('2d');
-  ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 10;
-  ctx.fillText(text, 150, 36);
-  const tex = new THREE.CanvasTexture(canvas);
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite:false });
-  const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(0.95, 0.22, 1);
-  return sprite;
-}
-
+// +EGO / +BUBBLE — clear crystal Bubble of Ego sweeping shut around the Buddha (radius 2.1)
 function buildEgoAnimation(root){
-  const mat = new THREE.MeshPhysicalMaterial({ color:0xffffff, roughness:0.05, metalness:0.1, transmission:0.95, ior:1.45, thickness:0.3, transparent:true, opacity:0.9, side:THREE.DoubleSide, depthWrite:false });
-  const geo = new THREE.SphereGeometry(0.95, 40, 40);
-  const mesh = new THREE.Mesh(geo, mat); mesh.scale.setScalar(0.001); root.add(mesh);
+  const mat = new THREE.MeshPhysicalMaterial({ color:0xffffff, roughness:0.05, metalness:0.1, transmission:0.98, ior:1.52, thickness:0.3, transparent:true, opacity:1.0, side:THREE.DoubleSide, depthWrite:false });
+  let geo = createOuterBubbleGeometry(0.001, 40, 28);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = 3;
+  root.add(mesh);
   return {
-    update(t){ const s = 0.12 + (Math.sin(t*0.9)*0.5+0.5)*0.88; mesh.scale.setScalar(s); mesh.rotation.y = t*0.25; },
-    dispose(){ root.remove(mesh); geo.dispose(); mat.dispose(); }
+    extent: 2.1,
+    update(t){
+      const u = (Math.sin(t*0.5)*0.5+0.5); // continuous open/close breathing sweep
+      const phi = Math.max(0.01, u*Math.PI*2);
+      mesh.geometry.dispose();
+      mesh.geometry = createOuterBubbleGeometry(phi, 40, 28);
+    },
+    dispose(){ root.remove(mesh); mesh.geometry.dispose(); mat.dispose(); }
   };
 }
-function buildLaserAnimation(root, colorHex){
-  const color = new THREE.Color(colorHex || '#00e5ff');
-  const mat = new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending });
-  const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
-  const beams = dirs.map(d => {
+
+// +LASER — 6 cardinal axial beams of light shooting outward from origin (length 2.4)
+function buildLaserAnimation(root, colorOverride){
+  const beams = AXES_DIRECTIONS.map(axis => {
+    const color = colorOverride ? new THREE.Color(colorOverride) : new THREE.Color(axis.col);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, side:THREE.DoubleSide });
     const g = new THREE.Group();
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,1,8), mat); shaft.position.y = 0.5; g.add(shaft);
-    const head = new THREE.Mesh(new THREE.ConeGeometry(0.03,0.12,8), mat); head.position.y = 1.06; g.add(head);
-    g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(...d));
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,1,14), mat); shaft.position.y = 0.5; g.add(shaft);
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.034,0.14,14), mat); head.position.y = 1.07; g.add(head);
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), axis.dir());
     root.add(g);
-    return { g, shaft, head };
+    return { g, shaft, head, mat };
   });
   return {
-    update(t){ const p = (t*0.6)%1.4; const len = Math.min(1, Math.max(0.02, p));
-      beams.forEach(b => { b.shaft.scale.y = len; b.shaft.position.y = len/2; b.head.position.y = len+0.06; b.head.visible = p<1.05; }); },
-    dispose(){ beams.forEach(b => root.remove(b.g)); mat.dispose(); }
+    extent: 2.4,
+    update(t){
+      const p = (t*0.55) % 1.5; const prog = Math.min(1, p);
+      const len = Math.max(0.02, prog * 2.4);
+      beams.forEach(b => { b.shaft.scale.y = len; b.shaft.position.y = len/2; b.head.position.y = len+0.07; b.head.visible = prog>0.02; b.mat.opacity = 0.9*Math.min(1,prog*4); });
+    },
+    dispose(){ beams.forEach(b => root.remove(b.g)); }
   };
 }
-function buildSpiralAnimation(root, colorHex){
-  const color = new THREE.Color(colorHex || '#bb66ff');
-  const N = 200;
+
+// +HELIX / +SPIRAL — 6 expanding conical helical beams from the origin (10.5 tight turns)
+function buildSpiralAnimation(root, colorOverride){
+  const spiralLength = 2.4, maxR = 0.22, turns = 10.5, N = 140;
+  const items = AXES_DIRECTIONS.map(axis => {
+    const d = axis.dir().normalize();
+    const ref = Math.abs(d.z) < 0.9 ? new THREE.Vector3(0,0,1) : new THREE.Vector3(0,1,0);
+    const v1 = new THREE.Vector3().crossVectors(d, ref).normalize();
+    const v2 = new THREE.Vector3().crossVectors(d, v1).normalize();
+    const positions = new Float32Array(N*3);
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3)); geo.setDrawRange(0,0);
+    const color = colorOverride ? new THREE.Color(colorOverride) : new THREE.Color(axis.col);
+    const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending });
+    const line = new THREE.Line(geo, mat); root.add(line);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.035,12,12), new THREE.MeshBasicMaterial({ color:0xffffff }));
+    root.add(tip);
+    return { d, v1, v2, geo, positions, mat, line, tip };
+  });
+  return {
+    extent: spiralLength,
+    update(t){
+      const p = (t*0.42) % 1.6; const prog = Math.min(1, p);
+      const currentL = prog*spiralLength;
+      const activePts = Math.max(2, Math.round(prog*N));
+      items.forEach(item => {
+        let ptr = 0, lastX=0,lastY=0,lastZ=0;
+        for (let j=0;j<N;j++){
+          const s = (j/(N-1))*currentL;
+          const r = maxR*Math.pow(s/spiralLength, 0.85);
+          const theta = (s/spiralLength)*Math.PI*2*turns;
+          const x = s*item.d.x + r*(Math.cos(theta)*item.v1.x + Math.sin(theta)*item.v2.x);
+          const y = s*item.d.y + r*(Math.cos(theta)*item.v1.y + Math.sin(theta)*item.v2.y);
+          const z = s*item.d.z + r*(Math.cos(theta)*item.v1.z + Math.sin(theta)*item.v2.z);
+          item.positions[ptr++]=x; item.positions[ptr++]=y; item.positions[ptr++]=z;
+          if (j===activePts-1){ lastX=x; lastY=y; lastZ=z; }
+        }
+        item.geo.setDrawRange(0, activePts);
+        item.geo.attributes.position.needsUpdate = true;
+        item.tip.position.set(lastX,lastY,lastZ);
+        item.tip.visible = prog>0.02;
+        item.mat.opacity = 0.95*Math.min(1, prog*3.5);
+      });
+    },
+    dispose(){ items.forEach(it => { root.remove(it.line); root.remove(it.tip); it.geo.dispose(); it.mat.dispose(); }); }
+  };
+}
+
+// +TORUS_IN / +TORUS_OUT — circular Horn Torus energy flow (streamlines + particles)
+function buildTorusAnimation(root, direction, colorOverride){
+  const colorHex = colorOverride ? new THREE.Color(colorOverride).getHex() : (direction==='in' ? 0x00ffaa : 0xff9900);
+  const colorStr = '#' + colorHex.toString(16).padStart(6,'0');
+  const numStreamlines = 10, segsPerStreamline = 40, particlesPerStreamline = 3;
+  const totalParticles = numStreamlines*particlesPerStreamline;
+
+  const lineMat = new THREE.LineBasicMaterial({ color:colorHex, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending });
+  const streamlines = [];
+  for (let i=0;i<numStreamlines;i++){
+    const azimuth = (i/numStreamlines)*Math.PI*2;
+    const positions = new Float32Array(segsPerStreamline*3);
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    const line = new THREE.Line(geo, lineMat); root.add(line);
+    streamlines.push({ line, geo, positions, azimuth });
+  }
+  function glowTex(hex){
+    const c = document.createElement('canvas'); c.width=64; c.height=64;
+    const ctx = c.getContext('2d'); const g = ctx.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(0.25,hex); g.addColorStop(0.65,hex+'88'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,64,64);
+    return new THREE.CanvasTexture(c);
+  }
+  const particlePositions = new Float32Array(totalParticles*3);
+  const particleGeo = new THREE.BufferGeometry(); particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions,3));
+  const particleMat = new THREE.PointsMaterial({ map: glowTex(colorStr), size: direction==='in'?0.11:0.14, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false });
+  const particles = new THREE.Points(particleGeo, particleMat);
+  root.add(particles);
+
+  return {
+    extent: direction==='in' ? 1.7 : 4.0,
+    update(t){
+      const flowOffset = (t*(direction==='in'?0.45:0.40)) % 1.0;
+      const progress = 1.0;
+      const maxPts = Math.max(2, Math.round(progress*segsPerStreamline));
+      streamlines.forEach(item => {
+        let ptr=0;
+        for (let j=0;j<segsPerStreamline;j++){
+          const baseTau = j/(segsPerStreamline-1);
+          const pt = evaluateHornTorusPoint(baseTau, item.azimuth, direction);
+          item.positions[ptr++]=pt.x; item.positions[ptr++]=pt.y; item.positions[ptr++]=pt.z;
+        }
+        item.geo.setDrawRange(0, maxPts); item.geo.attributes.position.needsUpdate = true;
+      });
+      let pPtr=0;
+      for (let i=0;i<numStreamlines;i++){
+        const azimuth = (i/numStreamlines)*Math.PI*2;
+        for (let p=0;p<particlesPerStreamline;p++){
+          const baseTau = p/particlesPerStreamline;
+          const tau = (baseTau+flowOffset)%1.0;
+          const pt = evaluateHornTorusPoint(tau, azimuth, direction);
+          particlePositions[pPtr++]=pt.x; particlePositions[pPtr++]=pt.y; particlePositions[pPtr++]=pt.z;
+        }
+      }
+      particleGeo.setDrawRange(0, totalParticles); particleGeo.attributes.position.needsUpdate = true;
+    },
+    dispose(){ streamlines.forEach(s=>{root.remove(s.line); s.geo.dispose();}); lineMat.dispose(); root.remove(particles); particleGeo.dispose(); particleMat.dispose(); }
+  };
+}
+
+// +COLUMN_OF_LIGHT — the 40-node Column of Light spiral, individually triggerable per card
+function buildColumnOfLightAnimation(root, colorOverride){
+  const color = colorOverride ? new THREE.Color(colorOverride) : new THREE.Color(0xffd700);
+  const N = COLUMN_OF_LIGHT_NODE_COUNT;
   const positions = new Float32Array(N*3);
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
   const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending });
   const line = new THREE.Line(geo, mat); root.add(line);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.035,12,12), new THREE.MeshBasicMaterial({ color:0xffffff }));
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.05,14,14), new THREE.MeshBasicMaterial({ color:0xffffff }));
   root.add(tip);
-  function pointAt(u){ const turns=4.5; const ang=u*turns*Math.PI*2; const r=0.05+u*0.5; const z=-0.5+u*2.1; return new THREE.Vector3(r*Math.cos(ang), r*Math.sin(ang), z); }
+  const markers = [];
+  for (let i=0;i<N;i+=4){
+    const p = getSpiralPosition(i);
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.035,10,10), new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.55 }));
+    m.position.copy(p); root.add(m); markers.push(m);
+  }
   return {
-    update(t){ const p=(t*0.25)%1.3; const prog=Math.min(1,p); const count=Math.max(2,Math.floor(prog*N));
-      for (let i=0;i<count;i++){ const u=i/(N-1); const v=pointAt(u); positions[i*3]=v.x; positions[i*3+1]=v.y; positions[i*3+2]=v.z; }
-      geo.setDrawRange(0,count); geo.attributes.position.needsUpdate=true;
-      const tv=pointAt(prog); tip.position.copy(tv); tip.visible = prog<1; },
-    dispose(){ root.remove(line); root.remove(tip); geo.dispose(); mat.dispose(); }
+    extent: 2.6,
+    update(t){
+      const p = (t*0.18) % 1.4; const prog = Math.min(1, p);
+      const count = Math.max(2, Math.floor(prog*N));
+      for (let i=0;i<count;i++){ const v = getSpiralPosition(i); positions[i*3]=v.x; positions[i*3+1]=v.y; positions[i*3+2]=v.z; }
+      geo.setDrawRange(0, count); geo.attributes.position.needsUpdate = true;
+      const tv = getSpiralPosition(Math.min(N-1, prog*(N-1)));
+      tip.position.copy(tv); tip.visible = prog < 1;
+    },
+    dispose(){ root.remove(line); root.remove(tip); markers.forEach(m=>root.remove(m)); geo.dispose(); mat.dispose(); }
   };
 }
-function buildTorusAnimation(root, colorHex, dir){
-  const color = new THREE.Color(colorHex || (dir==='in' ? '#00ffaa' : '#ff9900'));
-  const mat = new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, side:THREE.DoubleSide });
-  const geo = new THREE.TorusGeometry(0.35, 0.03, 12, 48);
-  const mesh = new THREE.Mesh(geo, mat); mesh.rotation.x = Math.PI/2; root.add(mesh);
-  return {
-    update(t){ const p=(t*0.35)%1;
-      const startZ = dir==='in' ? 1.0 : -0.4, endZ = dir==='in' ? -0.4 : 1.3;
-      const startR = dir==='in' ? 0.5 : 0.15, endR = dir==='in' ? 0.15 : 0.9;
-      mesh.position.z = startZ + (endZ-startZ)*p;
-      const r = startR + (endR-startR)*p; mesh.scale.set(r/0.35, r/0.35, 1);
-      mat.opacity = 0.85*(1-Math.abs(p-0.5)*0.6); },
-    dispose(){ root.remove(mesh); geo.dispose(); mat.dispose(); }
-  };
-}
-function buildGenericPulseAnimation(root, colorHex, label){
-  const color = new THREE.Color(colorHex || '#ffd700');
+
+// Fallback for any unrecognized new +xxx token — never silently ignored.
+function buildGenericPulseAnimation(root, colorOverride, label){
+  const color = colorOverride ? new THREE.Color(colorOverride) : new THREE.Color(0xffd700);
   const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.7, roughness:0.25, metalness:0.3 });
   const geo = new THREE.IcosahedronGeometry(0.2, 0);
-  const mesh = new THREE.Mesh(geo, mat); mesh.position.set(0,0,0.9); root.add(mesh);
-  const sprite = makeTextSprite('+'+label, colorHex || '#ffd700'); sprite.position.set(0,0,1.25); root.add(sprite);
+  const mesh = new THREE.Mesh(geo, mat); mesh.position.set(0,0,1.1); root.add(mesh);
+
+  const canvas = document.createElement('canvas'); canvas.width=320; canvas.height=70;
+  const ctx = canvas.getContext('2d'); ctx.font='bold 38px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle = '#' + color.getHexString(); ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
+  ctx.fillText('+'+label, 160, 36);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent:true, depthWrite:false }));
+  sprite.scale.set(1.0, 0.22, 1); sprite.position.set(0,0,1.45); root.add(sprite);
+
   return {
+    extent: 1.6,
     update(t){ const s = 0.8+Math.sin(t*2.4)*0.25; mesh.scale.setScalar(s); mesh.rotation.y = t*0.8; },
     dispose(){ root.remove(mesh); root.remove(sprite); geo.dispose(); mat.dispose(); }
   };
 }
+
 function buildTriggerAnimation(name, root, colorHex){
   switch(name){
     case 'EGO': return buildEgoAnimation(root);
     case 'LASER': return buildLaserAnimation(root, colorHex);
-    case 'HELIX': case 'SPIRAL': return buildSpiralAnimation(root, colorHex);
-    case 'TORUS_IN': return buildTorusAnimation(root, colorHex, 'in');
-    case 'TORUS_OUT': return buildTorusAnimation(root, colorHex, 'out');
+    case 'SPIRAL': return buildSpiralAnimation(root, colorHex);
+    case 'TORUS_IN': return buildTorusAnimation(root, 'in', colorHex);
+    case 'TORUS_OUT': return buildTorusAnimation(root, 'out', colorHex);
+    case 'COLUMN_OF_LIGHT': return buildColumnOfLightAnimation(root, colorHex);
     default: return buildGenericPulseAnimation(root, colorHex, name);
   }
 }
 
 /* =========================================================================
-   6. PER-CARD MINI 3D VISUALIZATION
+   7. PER-CARD MINI 3D VISUALIZATION
    ========================================================================= */
 function initCardViz(container, fields, triggers, statusEl){
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x03060d, 0.09);
+  scene.fog = new THREE.FogExp2(0x03060d, 0.06);
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 20);
-  camera.position.set(1.55, 1.75, 1.05);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 30);
   camera.up.set(0, 0, 1);
+
+  // Frame the camera to comfortably fit the Buddha PLUS whichever animation
+  // extents are active on this card (e.g. Torus Out reaches further than a
+  // plain Buddha, Column of Light reaches up to Z~2.0 / R~2.2, etc.)
+  const activeExtents = [1.0]; // baseline: fit the ~1.5-unit-tall Buddha comfortably
+  const camDistance = () => Math.max(2.6, Math.max(...activeExtents) * 1.55 + 1.4);
+  function positionCamera(){
+    const d = camDistance();
+    camera.position.set(d*0.62, d*0.72, d*0.42);
+    camera.updateProjectionMatrix();
+  }
 
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -684,16 +878,16 @@ function initCardViz(container, fields, triggers, statusEl){
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08;
   controls.enableZoom = false; controls.enablePan = false;
-  controls.autoRotate = true; controls.autoRotateSpeed = 1.1;
-  controls.target.set(0, 0, 0.05);
+  controls.autoRotate = true; controls.autoRotateSpeed = 1.0;
+  controls.target.set(0, 0, 0.25);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const key = new THREE.DirectionalLight(0xfff6e5, 1.9); key.position.set(3,4,5); scene.add(key);
-  const fill = new THREE.DirectionalLight(0x90c8ff, 1.0); fill.position.set(-3,-3,-2); scene.add(fill);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const key = new THREE.DirectionalLight(0xfff6e5, 2.0); key.position.set(4,5,6); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x90c8ff, 1.1); fill.position.set(-4,-4,-2); scene.add(fill);
+  const coreLight = new THREE.PointLight(0x00e5ff, 1.6, 6); coreLight.position.set(0,0,0.25); scene.add(coreLight);
 
   const crystalMat = makeCrystalMaterial();
-  const rootGroup = new THREE.Group();
-  rootGroup.rotation.z = Math.PI / 2;
+  const rootGroup = new THREE.Group(); // Buddha convention: Crown Z=1.0, Seat Z=-0.5
 
   const placeholderBuddha = buildBuddhaStatue(crystalMat);
   rootGroup.add(placeholderBuddha);
@@ -721,18 +915,19 @@ function initCardViz(container, fields, triggers, statusEl){
     const markerLight = new THREE.PointLight(markerColor.getHex(), 1.2, 2);
     markerLight.position.copy(markerMesh.position);
     rootGroup.add(markerLight);
+    activeExtents.push(Math.hypot(nx||0, ny||0, nz||0) + 0.3);
   }
 
-  // Animation triggers from Visualization cell (+LASER, +EGO, +HELIX, +TORUS_IN,
-  // +TORUS_OUT, or any brand-new +xxx token)
+  // Animation triggers from the Visualization cell
   const activeAnims = [];
   triggers.forEach(trig => {
-    const anim = buildTriggerAnimation(trig, rootGroup, fields.viz.colorHex || getTriggerColor(trig));
-    if (anim) activeAnims.push(anim);
+    const anim = buildTriggerAnimation(trig, rootGroup, fields.viz.colorHex);
+    if (anim) { activeAnims.push(anim); if (anim.extent) activeExtents.push(anim.extent); }
   });
   if (triggers.length && statusEl) statusEl.textContent = `▶ Hiệu ứng: ${triggers.map(t=>'+'+t).join(' ')}`;
 
   scene.add(rootGroup);
+  positionCamera();
 
   const clockStart = performance.now();
   let isVisible = true;
@@ -758,6 +953,7 @@ function initCardViz(container, fields, triggers, statusEl){
     if (!isVisible) { rafId = null; return; }
     rafId = requestAnimationFrame(animate);
     const elapsed = (performance.now() - clockStart) / 1000;
+    coreLight.intensity = Math.sin(elapsed*2)*0.5 + 1.3;
     activeAnims.forEach(a => a.update(elapsed));
     controls.update();
     renderer.render(scene, camera);
@@ -775,39 +971,20 @@ function initCardViz(container, fields, triggers, statusEl){
 }
 
 /* =========================================================================
-   7. OVERVIEW PANEL — "COLUMN OF LIGHT SPIRAL" FOR THE WHOLE SEQUENCE
-      Activated when ANY row's Visualization cell contains one of
-      WHOLE_SEQUENCE_SPIRAL_TOKENS (default: +SPIRAL_ALL). Connects every
-      card in the current filtered/sorted PT.xxx sequence into one
-      continuous animated spiral of light around the Buddha, in order.
+   8. OVERVIEW PANEL — WHOLE-SEQUENCE COLUMN OF LIGHT SPIRAL
+      Activated when any row's Visualization cell contains a whole-sequence
+      token (+SPIRAL_ALL / +COLUMN_ALL / +SPIRAL_SEQUENCE / +COLUMN_OF_LIGHT_ALL).
+      Uses the exact same calibrated 40-node getSpiralPosition() geometry as
+      the original Lotus Bodhicitta System, with Play/Pause/Step controls.
    ========================================================================= */
-function autoHelixPosition(i, total){
-  const t = total <= 1 ? 0 : i/(total-1);
-  const radius = 0.15 + t*1.1;
-  const z = -0.4 + t*2.4;
-  const angle = i * 2.399963; // golden angle
-  return [radius*Math.cos(angle), radius*Math.sin(angle), z];
-}
-
-function buildOverviewNodes(extractedList){
-  const total = extractedList.length;
-  return extractedList.map((f, i) => ({
-    index: i,
-    t: total <= 1 ? 0 : i/(total-1),
-    label: f.c5Name || f.wbsid || `#${i+1}`,
-    coords: f.viz.coords || autoHelixPosition(i, total),
-    color: f.viz.colorHex || '#ffd700'
-  }));
-}
-
-function renderOverviewSection(container, extractedList, isActive){
+function renderOverviewSection(container, isActive){
   if (!isActive) { container.innerHTML = ''; return; }
-  const nodes = buildOverviewNodes(extractedList);
+  const N = COLUMN_OF_LIGHT_NODE_COUNT;
 
   container.innerHTML = `
     <div class="overview-panel">
       <button class="overview-toggle-pill" id="overviewToggleBtn">
-        <span>🌀 Cột Ánh Sáng Xoắn Ốc — Toàn Chuỗi (${nodes.length} nút)</span><span id="overviewCaret">▾</span>
+        <span>🌀 Cột Ánh Sáng Xoắn Ốc — Toàn Chuỗi (${N} nút)</span><span id="overviewCaret">▾</span>
       </button>
       <div class="overview-body" id="overviewBody" style="display:none;">
         <div class="overview-canvas-wrap" id="overviewCanvasWrap"></div>
@@ -815,7 +992,7 @@ function renderOverviewSection(container, extractedList, isActive){
           <button id="ovPrev">◀ Nút trước</button>
           <button id="ovPlayPause">▶ Chạy</button>
           <button id="ovNext">Nút sau ▶</button>
-          <span class="overview-label" id="ovNodeLabel">Sẵn sàng — ${nodes.length} nút trong chuỗi</span>
+          <span class="overview-label" id="ovNodeLabel">Sẵn sàng — ${N} nút trong Cột Ánh Sáng</span>
         </div>
       </div>
     </div>`;
@@ -831,17 +1008,18 @@ function renderOverviewSection(container, extractedList, isActive){
     caret.textContent = willOpen ? '▲' : '▾';
     if (willOpen && !started) {
       started = true;
-      overviewController = initOverviewViz(document.getElementById('overviewCanvasWrap'), nodes);
+      overviewController = initOverviewViz(document.getElementById('overviewCanvasWrap'));
     }
   });
 }
 
-function initOverviewViz(container, nodes){
+function initOverviewViz(container){
+  const N = COLUMN_OF_LIGHT_NODE_COUNT;
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x04020a, 0.05);
+  scene.fog = new THREE.FogExp2(0x04020a, 0.035);
 
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 30);
-  camera.position.set(2.6, 3.0, 1.9);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 40);
+  camera.position.set(4.6, 5.4, 3.0);
   camera.up.set(0, 0, 1);
 
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
@@ -854,11 +1032,10 @@ function initOverviewViz(container, nodes){
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.5));
   const key = new THREE.DirectionalLight(0xfff6e5, 1.8); key.position.set(4,5,6); scene.add(key);
-  const fill = new THREE.DirectionalLight(0x9060ff, 1.1); fill.position.set(-4,-4,-2); scene.add(fill);
+  const fill = new THREE.DirectionalLight(0xffcc66, 1.0); fill.position.set(-4,-4,-2); scene.add(fill);
 
   const crystalMat = makeCrystalMaterial();
   const rootGroup = new THREE.Group();
-  rootGroup.rotation.z = Math.PI/2;
   const placeholderBuddha = buildBuddhaStatue(crystalMat);
   rootGroup.add(placeholderBuddha);
   loadSharedBuddhaModel().then((sceneRoot) => {
@@ -869,112 +1046,71 @@ function initOverviewViz(container, nodes){
   }).catch(() => { /* keep placeholder */ });
   scene.add(rootGroup);
 
-  // Spline path through every node's coordinate, in sequence order
-  const curvePoints = nodes.map(n => new THREE.Vector3(n.coords[0], n.coords[1], n.coords[2]));
-  const curve = curvePoints.length >= 2 ? new THREE.CatmullRomCurve3(curvePoints) : null;
-  const SPLINE_RES = Math.max(300, nodes.length * 12);
-  const linePositions = new Float32Array(SPLINE_RES * 3);
-  const lineGeo = new THREE.BufferGeometry();
-  lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
-  const lineMat = new THREE.LineBasicMaterial({ color: 0xbb66ff, transparent:true, opacity:0.95, blending: THREE.AdditiveBlending });
+  // 40 calibrated node markers + progressive spiral line, exactly matching getSpiralPosition()
+  const nodePositions = [];
+  for (let i=0;i<N;i++) nodePositions.push(getSpiralPosition(i));
+
+  const linePositions = new Float32Array(N*3);
+  const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions,3));
+  const lineMat = new THREE.LineBasicMaterial({ color: 0xffd700, transparent:true, opacity:0.95, blending: THREE.AdditiveBlending });
   const spiralLine = new THREE.Line(lineGeo, lineMat);
   rootGroup.add(spiralLine);
 
-  const travelTip = new THREE.Mesh(new THREE.SphereGeometry(0.05,16,16), new THREE.MeshBasicMaterial({ color:0xffffff }));
+  const travelTip = new THREE.Mesh(new THREE.SphereGeometry(0.055,16,16), new THREE.MeshBasicMaterial({ color:0xffffff }));
   rootGroup.add(travelTip);
 
-  // Per-node markers + labels
-  const nodeMeshes = nodes.map(n => {
-    const color = new THREE.Color(n.color);
-    const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.15, roughness:0.3, metalness:0.2 });
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 20), mat);
-    mesh.position.set(n.coords[0], n.coords[1], n.coords[2]);
+  const nodeMeshes = nodePositions.map((p, i) => {
+    const mat = new THREE.MeshPhysicalMaterial({ color:0xffe082, emissive:0xffcc00, emissiveIntensity:0.1, roughness:0.3, metalness:0.2 });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.06, 18, 18), mat);
+    mesh.position.copy(p);
     rootGroup.add(mesh);
-    return { mesh, mat, node: n, lit:false };
+    return { mesh, mat, i, lit:false };
   });
 
-  let progress = 0;         // 0..1 continuous position along the whole spiral
+  let currentIdx = -1;
   let playing = false;
-  const speed = 0.10;       // progress units per second
-
-  function pointOnCurve(p){
-    if (!curve) return new THREE.Vector3(0,0,0);
-    return curve.getPoint(Math.min(1, Math.max(0, p)));
-  }
+  const speed = 3.2; // nodes per second
 
   function updateVisual(){
-    const count = Math.max(2, Math.floor(progress * SPLINE_RES));
-    for (let i = 0; i < count; i++){
-      const u = i/(SPLINE_RES-1);
-      const v = pointOnCurve(u);
-      linePositions[i*3]=v.x; linePositions[i*3+1]=v.y; linePositions[i*3+2]=v.z;
-    }
-    lineGeo.setDrawRange(0, count);
-    lineGeo.attributes.position.needsUpdate = true;
+    const count = Math.max(2, currentIdx+1);
+    for (let i=0;i<count;i++){ const v = nodePositions[i]; linePositions[i*3]=v.x; linePositions[i*3+1]=v.y; linePositions[i*3+2]=v.z; }
+    lineGeo.setDrawRange(0, count); lineGeo.attributes.position.needsUpdate = true;
 
-    const tip = pointOnCurve(progress);
-    travelTip.position.copy(tip);
-
-    let currentNode = null;
+    if (currentIdx >= 0) travelTip.position.copy(nodePositions[Math.min(N-1,currentIdx)]);
     nodeMeshes.forEach(nm => {
-      const shouldLight = nm.node.t <= progress + 0.001;
-      if (shouldLight && !nm.lit) { nm.lit = true; nm.mat.emissiveIntensity = 0.9; nm.mesh.scale.setScalar(1.4); }
-      if (shouldLight) currentNode = nm.node;
+      const shouldLight = nm.i <= currentIdx;
+      if (shouldLight && !nm.lit) { nm.lit = true; nm.mat.emissiveIntensity = 0.9; nm.mesh.scale.setScalar(1.5); }
     });
     const label = document.getElementById('ovNodeLabel');
-    if (label) label.textContent = currentNode ? `Đang tại: ${currentNode.label} (${currentNode.index+1}/${nodes.length})` : `Sẵn sàng — ${nodes.length} nút trong chuỗi`;
+    if (label) label.textContent = currentIdx>=0 ? `Đang tại nút #${currentIdx+1} / ${N}` : `Sẵn sàng — ${N} nút trong Cột Ánh Sáng`;
   }
   updateVisual();
 
   const playPauseBtn = document.getElementById('ovPlayPause');
   const prevBtn = document.getElementById('ovPrev');
   const nextBtn = document.getElementById('ovNext');
-
   function setPlaying(v){ playing = v; if (playPauseBtn) playPauseBtn.textContent = playing ? '⏸ Tạm dừng' : '▶ Chạy'; }
   playPauseBtn && playPauseBtn.addEventListener('click', () => setPlaying(!playing));
-  prevBtn && prevBtn.addEventListener('click', () => {
-    setPlaying(false);
-    const idx = Math.max(0, Math.round(progress*(nodes.length-1)) - 1);
-    progress = nodes[idx] ? nodes[idx].t : 0;
-    updateVisual();
-  });
-  nextBtn && nextBtn.addEventListener('click', () => {
-    setPlaying(false);
-    const idx = Math.min(nodes.length-1, Math.round(progress*(nodes.length-1)) + 1);
-    progress = nodes[idx] ? nodes[idx].t : 1;
-    updateVisual();
-  });
+  prevBtn && prevBtn.addEventListener('click', () => { setPlaying(false); currentIdx = Math.max(0, currentIdx-1); updateVisual(); });
+  nextBtn && nextBtn.addEventListener('click', () => { setPlaying(false); currentIdx = Math.min(N-1, currentIdx+1); updateVisual(); });
 
-  let isVisible = true;
-  let rafId = null;
-  let lastT = performance.now();
-
+  let isVisible = true, rafId = null, lastT = performance.now(), acc = 0;
   function resize(){
-    const w = container.clientWidth || 1;
-    const h = container.clientHeight || 1;
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    const w = container.clientWidth || 1, h = container.clientHeight || 1;
+    renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
   }
   resize();
-  const ro = new ResizeObserver(resize);
-  ro.observe(container);
-
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach(en => { isVisible = en.isIntersecting; if (isVisible && !rafId) animate(); });
-  }, { threshold: 0.05 });
+  const ro = new ResizeObserver(resize); ro.observe(container);
+  const io = new IntersectionObserver((entries) => { entries.forEach(en => { isVisible = en.isIntersecting; if (isVisible && !rafId) animate(); }); }, { threshold:0.05 });
   io.observe(container);
 
   function animate(){
     if (!isVisible) { rafId = null; return; }
     rafId = requestAnimationFrame(animate);
-    const now = performance.now();
-    const dt = Math.min(0.05, (now-lastT)/1000);
-    lastT = now;
+    const now = performance.now(); const dt = Math.min(0.05, (now-lastT)/1000); lastT = now;
     if (playing) {
-      progress += dt*speed;
-      if (progress >= 1) { progress = 1; setPlaying(false); }
-      updateVisual();
+      acc += dt*speed;
+      if (acc >= 1) { acc = 0; currentIdx = Math.min(N-1, currentIdx+1); updateVisual(); if (currentIdx>=N-1) setPlaying(false); }
     }
     controls.update();
     renderer.render(scene, camera);
@@ -982,11 +1118,7 @@ function initOverviewViz(container, nodes){
   animate();
 
   return {
-    cleanup(){
-      if (rafId) cancelAnimationFrame(rafId);
-      ro.disconnect(); io.disconnect();
-      renderer.dispose(); controls.dispose();
-    }
+    cleanup(){ if (rafId) cancelAnimationFrame(rafId); ro.disconnect(); io.disconnect(); renderer.dispose(); controls.dispose(); }
   };
 }
 
