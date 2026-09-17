@@ -525,9 +525,9 @@ const COLUMN_OF_LIGHT_NODE_COUNT = 40;
 // triangulated glowing ribbon surface between the spiral curve and the
 // curve exactly one full turn (4 nodes) below it -- or, for the first turn,
 // down to the flat base circle at R=1.35, Z=-0.50. This tapers naturally
-// from zero height at t=0 up to the full turn height with no blunt ends,
-// which is the "correct intention" of the animation (a rising spiral WALL
-// of light, not just a traveling line/dot).
+// from zero height at t=0 up to the full turn height with no blunt ends --
+// producing a rising spiral WALL of light (matches reference visuals),
+// not merely a traveling line or dots.
 function buildColumnOfLightWallGeometry(maxT, segmentsPerNode){
   segmentsPerNode = segmentsPerNode || 20;
   const vertices = [], indices = [];
@@ -867,33 +867,43 @@ function buildTorusAnimation(root, direction, colorOverride){
   };
 }
 
-// +COLUMN_OF_LIGHT — the 40-node Column of Light spiral, individually triggerable per card
+// +COLUMN_OF_LIGHT — the Column of Light spiral WALL, built with the exact
+// same ribbon geometry as the original Lotus Bodhicitta System
+// (rebuildWallGeometry / getSpiralPosition), individually triggerable per
+// card. The wall continuously grows upward turn by turn, then loops.
 function buildColumnOfLightAnimation(root, colorOverride){
-  const color = colorOverride ? new THREE.Color(colorOverride) : new THREE.Color(0xffd700);
-  const N = COLUMN_OF_LIGHT_NODE_COUNT;
-  const positions = new Float32Array(N*3);
-  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
-  const mat = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending });
-  const line = new THREE.Line(geo, mat); root.add(line);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.05,14,14), new THREE.MeshBasicMaterial({ color:0xffffff }));
+  const MAX_TURN_T = 10 * 4; // 10 full turns worth of wall sweep
+  const CYCLE_SECONDS = 10;  // time to grow from bare seat to full height, then restart
+
+  const mat = makeColumnOfLightWallMaterial(colorOverride);
+  let wallMesh = new THREE.Mesh(buildColumnOfLightWallGeometry(0), mat);
+  root.add(wallMesh);
+
+  const tipColor = colorOverride ? new THREE.Color(colorOverride) : new THREE.Color(0xfff6c8);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 16), new THREE.MeshBasicMaterial({ color: tipColor }));
   root.add(tip);
-  const markers = [];
-  for (let i=0;i<N;i+=4){
-    const p = getSpiralPosition(i);
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.035,10,10), new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.55 }));
-    m.position.copy(p); root.add(m); markers.push(m);
-  }
+  const tipLight = new THREE.PointLight(tipColor.getHex(), 1.1, 2.4);
+  root.add(tipLight);
+
   return {
     extent: 2.6,
     update(t){
-      const p = (t*0.18) % 1.4; const prog = Math.min(1, p);
-      const count = Math.max(2, Math.floor(prog*N));
-      for (let i=0;i<count;i++){ const v = getSpiralPosition(i); positions[i*3]=v.x; positions[i*3+1]=v.y; positions[i*3+2]=v.z; }
-      geo.setDrawRange(0, count); geo.attributes.position.needsUpdate = true;
-      const tv = getSpiralPosition(Math.min(N-1, prog*(N-1)));
-      tip.position.copy(tv); tip.visible = prog < 1;
+      const prog = (t % CYCLE_SECONDS) / CYCLE_SECONDS;
+      const maxT = prog * MAX_TURN_T;
+
+      wallMesh.geometry.dispose();
+      wallMesh.geometry = buildColumnOfLightWallGeometry(maxT);
+
+      const tv = getSpiralPosition(maxT);
+      tip.position.copy(tv);
+      tipLight.position.copy(tv);
+      tip.visible = maxT > 0.02;
+      tipLight.visible = tip.visible;
     },
-    dispose(){ root.remove(line); root.remove(tip); markers.forEach(m=>root.remove(m)); geo.dispose(); mat.dispose(); }
+    dispose(){
+      root.remove(wallMesh); wallMesh.geometry.dispose(); mat.dispose();
+      root.remove(tip); root.remove(tipLight);
+    }
   };
 }
 
@@ -1147,6 +1157,13 @@ function initOverviewViz(container){
     return { mesh, mat, i, lit:false };
   });
 
+  // Glowing ribbon "wall" of light, built with the exact same tapering
+  // geometry as the original Lotus Bodhicitta System (rebuildWallGeometry),
+  // growing in lockstep with the node stepper below.
+  const wallMat = makeColumnOfLightWallMaterial(0xffe240);
+  let wallMesh = new THREE.Mesh(buildColumnOfLightWallGeometry(0), wallMat);
+  rootGroup.add(wallMesh);
+
   let currentIdx = -1;
   let playing = false;
   const speed = 3.2; // nodes per second
@@ -1161,6 +1178,10 @@ function initOverviewViz(container){
       const shouldLight = nm.i <= currentIdx;
       if (shouldLight && !nm.lit) { nm.lit = true; nm.mat.emissiveIntensity = 0.9; nm.mesh.scale.setScalar(1.5); }
     });
+
+    wallMesh.geometry.dispose();
+    wallMesh.geometry = buildColumnOfLightWallGeometry(Math.max(0, currentIdx));
+
     const label = document.getElementById('ovNodeLabel');
     if (label) label.textContent = currentIdx>=0 ? `Đang tại nút #${currentIdx+1} / ${N}` : `Sẵn sàng — ${N} nút trong Cột Ánh Sáng`;
   }
