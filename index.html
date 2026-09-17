@@ -520,6 +520,79 @@ function getSpiralPosition(i){
 }
 const COLUMN_OF_LIGHT_NODE_COUNT = 40;
 
+// Faithful port of the Column of Light "wall" ribbon geometry from the
+// original Lotus Bodhicitta System (rebuildWallGeometry). Builds a
+// triangulated glowing ribbon surface between the spiral curve and the
+// curve exactly one full turn (4 nodes) below it -- or, for the first turn,
+// down to the flat base circle at R=1.35, Z=-0.50. This tapers naturally
+// from zero height at t=0 up to the full turn height with no blunt ends,
+// which is the "correct intention" of the animation (a rising spiral WALL
+// of light, not just a traveling line/dot).
+function buildColumnOfLightWallGeometry(maxT, segmentsPerNode){
+  segmentsPerNode = segmentsPerNode || 20;
+  const vertices = [], indices = [];
+  const totalSegments = Math.max(0, Math.round(maxT * segmentsPerNode));
+
+  for (let j = 1; j <= totalSegments; j++) {
+    const tPrev = (j - 1) / segmentsPerNode;
+    const tCurr = j / segmentsPerNode;
+    const pPrev = getSpiralPosition(tPrev);
+    const pCurr = getSpiralPosition(tCurr);
+
+    let bPrevX, bPrevY, bPrevZ;
+    if (tPrev >= 4) {
+      const p = getSpiralPosition(tPrev - 4);
+      bPrevX = p.x; bPrevY = p.y; bPrevZ = p.z;
+    } else {
+      const thetaPrev = Math.PI / 2 + tPrev * (Math.PI / 2);
+      const rBase = 1.35;
+      bPrevX = rBase * Math.cos(thetaPrev);
+      bPrevY = rBase * Math.sin(thetaPrev);
+      bPrevZ = -0.50;
+    }
+
+    let bCurrX, bCurrY, bCurrZ;
+    if (tCurr >= 4) {
+      const p = getSpiralPosition(tCurr - 4);
+      bCurrX = p.x; bCurrY = p.y; bCurrZ = p.z;
+    } else {
+      const thetaCurr = Math.PI / 2 + tCurr * (Math.PI / 2);
+      const rBase = 1.35;
+      bCurrX = rBase * Math.cos(thetaCurr);
+      bCurrY = rBase * Math.sin(thetaCurr);
+      bCurrZ = -0.50;
+    }
+
+    const baseIndex = vertices.length / 3;
+    vertices.push(
+      pPrev.x, pPrev.y, pPrev.z,
+      pCurr.x, pCurr.y, pCurr.z,
+      bPrevX, bPrevY, bPrevZ,
+      bCurrX, bCurrY, bCurrZ
+    );
+    indices.push(
+      baseIndex + 0, baseIndex + 2, baseIndex + 1,
+      baseIndex + 1, baseIndex + 2, baseIndex + 3
+    );
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+  geo.setIndex(indices);
+  if (totalSegments > 0) geo.computeVertexNormals();
+  return geo;
+}
+
+// Same glowing additive "wall" material used by the original system.
+function makeColumnOfLightWallMaterial(colorOverride){
+  return new THREE.MeshBasicMaterial({
+    color: colorOverride ? new THREE.Color(colorOverride) : new THREE.Color(0xffe240),
+    transparent: true, opacity: 0.45, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending
+  });
+}
+
+
 // True circular Horn Torus evaluator (Torus In stays inside the R=2.1 Bubble
 // of Ego; Torus Out erupts higher/wider than the bubble) — same math as source.
 function evaluateHornTorusPoint(tau, azimuth, direction){
@@ -885,7 +958,7 @@ function initCardViz(container, fields, triggers, statusEl){
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08;
   controls.enableZoom = false; controls.enablePan = false;
-  controls.autoRotate = true; controls.autoRotateSpeed = 1.0;
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.5; // halved per request
   controls.target.set(0, 0, 0.25);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.5));
@@ -1125,7 +1198,12 @@ function initOverviewViz(container){
   animate();
 
   return {
-    cleanup(){ if (rafId) cancelAnimationFrame(rafId); ro.disconnect(); io.disconnect(); renderer.dispose(); controls.dispose(); }
+    cleanup(){
+      if (rafId) cancelAnimationFrame(rafId);
+      ro.disconnect(); io.disconnect();
+      wallMesh.geometry.dispose(); wallMat.dispose();
+      renderer.dispose(); controls.dispose();
+    }
   };
 }
 
