@@ -715,12 +715,12 @@ const BUDDHA_SEAT_Z  = -0.5;   // Lotus Seat, base of the statue
 const BUDDHA_CROWN_Z = 1.0;    // Crown, top of the statue
 const BUDDHA_TARGET_HEIGHT = BUDDHA_CROWN_Z - BUDDHA_SEAT_Z; // 1.5 units, matches all trigger math
 const BUDDHA_EXTRA_ROTATION_X = Math.PI/2; // most GLB exports are Y-up; this scene is Z-up
-const BUDDHA_EXTRA_ROTATION_Z = Math.PI;   // yaw about the crown axis so the model's anatomical
-                                            // FRONT faces scene +Y (assumes the common export
-                                            // convention where the un-rotated local front faces
-                                            // +Z); set to 0 instead if your GLB's local front is
-                                            // authored facing -Z, or to +/-Math.PI/2 to try the
-                                            // other two cardinal yaw options if it still looks off.
+const BUDDHA_EXTRA_ROTATION_Z = Math.PI/2; // yaw about the crown axis so the model's anatomical
+                                            // FRONT faces scene +Y. (Was Math.PI, which placed the
+                                            // front on -X; rotating back by a quarter-turn to
+                                            // Math.PI/2 moves it from -X to +Y as requested.)
+                                            // If the front ever looks off after a model swap, try
+                                            // 0 or -Math.PI/2 as the other two cardinal options.
 const BUDDHA_X_OFFSET = -0.2;  // Net offset along X: was -0.5, nudged an additional +0.3 along +X
                                 // to align the (0,0,0) origin with the statue's anatomical
                                 // solar plexus.
