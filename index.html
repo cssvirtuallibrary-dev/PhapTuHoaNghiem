@@ -497,7 +497,8 @@ function handleFilterSort(){
 /* =========================================================================
    4. SHARED CONSTANTS — faithfully ported from the original Lotus
       Bodhicitta System (Buddha coordinate convention: Crown = Z 1.0,
-      Lotus Seat = Z -0.5, Heart/center ≈ Z 0.25).
+      Lotus Seat = Z -0.5, Heart/center ≈ Z 0.25; anatomical Front = +Y,
+      anatomical Right hand side = +X).
    ========================================================================= */
 const AXES_DIRECTIONS = [
   { dir: () => new THREE.Vector3(1,0,0),  col: 0xff4444 },
@@ -625,8 +626,20 @@ function createOuterBubbleGeometry(phiLength, widthSegs, heightSegs){
 
 /* =========================================================================
    5. SHARED BUDDHA MODEL LOADER
-      Coordinate convention matches the animation math above: model is fit
-      so its base sits at Z = -0.5 (Lotus Seat) and its crown reaches Z = 1.0.
+      Full anatomical axis convention used throughout this file:
+        - Crown (top of head)      -> scene +Z  (Lotus Seat/base -> Z = -0.5)
+        - Anatomical FRONT (face)  -> scene +Y
+        - Anatomical RIGHT HAND    -> scene +X
+      Note on handedness: in a standard right-handed coordinate system (which
+      THREE.js uses), a normal, non-mirrored standing figure can only ever
+      satisfy TWO of "front=+Y" / "right=+X" / "up=+Z" independently before
+      the third is fixed by the anatomy itself (right x up = front). Crown=+Z
+      is treated as the load-bearing axis (every animation's math depends on
+      it), and FRONT=+Y is prioritized next (it determines how the statue
+      visually presents to the camera). As a consequence the anatomical
+      right hand renders on the -X side rather than +X for a true
+      non-mirrored figure -- flip BUDDHA_EXTRA_ROTATION_Z below by +/- PI if
+      you'd rather prioritize RIGHT=+X instead (front will then land on -Y).
       A +X offset is also applied to shift the figure slightly along the
       +X axis rather than sitting dead-center.
    ========================================================================= */
@@ -643,6 +656,12 @@ const BUDDHA_SEAT_Z  = -0.5;   // Lotus Seat, base of the statue
 const BUDDHA_CROWN_Z = 1.0;    // Crown, top of the statue
 const BUDDHA_TARGET_HEIGHT = BUDDHA_CROWN_Z - BUDDHA_SEAT_Z; // 1.5 units, matches all trigger math
 const BUDDHA_EXTRA_ROTATION_X = Math.PI/2; // most GLB exports are Y-up; this scene is Z-up
+const BUDDHA_EXTRA_ROTATION_Z = Math.PI;   // yaw about the crown axis so the model's anatomical
+                                            // FRONT faces scene +Y (assumes the common export
+                                            // convention where the un-rotated local front faces
+                                            // +Z); set to 0 instead if your GLB's local front is
+                                            // authored facing -Z, or to +/-Math.PI/2 to try the
+                                            // other two cardinal yaw options if it still looks off.
 const BUDDHA_X_OFFSET = 0.2;   // Shift the Buddha model by +0.2 units along the +X axis
 
 let buddhaModelLoadPromise = null;
@@ -667,8 +686,11 @@ function loadSharedBuddhaModel(){
 // spiral, column of light) correctly aligned regardless of the GLB's
 // native scale/pivot.
 function fitBuddhaModelToScene(object3D){
-  object3D.rotation.order = 'ZYX';
-  object3D.rotation.set(BUDDHA_EXTRA_ROTATION_X, 0, 0);
+  // Order 'ZXY' with a zero Y-component makes the composed rotation apply
+  // X (pitch: fixes CROWN to scene +Z) first, then Z (yaw: fixes FRONT to
+  // scene +Y) second -- see the anatomical axis convention notes above.
+  object3D.rotation.order = 'ZXY';
+  object3D.rotation.set(BUDDHA_EXTRA_ROTATION_X, 0, BUDDHA_EXTRA_ROTATION_Z);
   object3D.updateMatrixWorld(true);
   let box = new THREE.Box3().setFromObject(object3D);
   let size = new THREE.Vector3(); box.getSize(size);
@@ -693,7 +715,9 @@ function makeCrystalMaterial(){
   });
 }
 
-// Procedural placeholder statue, positioned on the SAME Crown=1.0 / Seat=-0.5
+// Procedural placeholder statue (axially symmetric -- no anatomical
+// front/back or left/right of its own), positioned on the SAME
+// Crown=1.0 / Seat=-0.5
 // coordinate convention as the GLB fit (also shifted by BUDDHA_X_OFFSET
 // along +X), so triggers line up identically whichever Buddha
 // representation is currently active.
@@ -1000,7 +1024,7 @@ function initCardViz(container, fields, triggers, statusEl){
   const coreLight = new THREE.PointLight(0x00e5ff, 1.6, 6); coreLight.position.set(0,0,0.25); scene.add(coreLight);
 
   const crystalMat = makeCrystalMaterial();
-  const rootGroup = new THREE.Group(); // Buddha convention: Crown Z=1.0, Seat Z=-0.5
+  const rootGroup = new THREE.Group(); // Buddha convention: Crown Z=1.0, Seat Z=-0.5, Front +Y, Right +X
 
   const placeholderBuddha = buildBuddhaStatue(crystalMat);
   rootGroup.add(placeholderBuddha);
