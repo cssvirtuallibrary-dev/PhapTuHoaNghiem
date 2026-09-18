@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
 
 <style>
   :root{
@@ -787,8 +788,28 @@ function fitBuddhaModelToScene(object3D){
 function makeCrystalMaterial(){
   return new THREE.MeshPhysicalMaterial({
     color: 0x80d8ff, emissive: 0x002b4d, emissiveIntensity: 0.2,
-    roughness: 0.16, metalness: 0.08, transmission: 0.72, opacity: 0.88, transparent: true,
+    roughness: 0.16, metalness: 0.08, transmission: 0.94, opacity: 0.28, transparent: true,
     depthWrite: false, side: THREE.FrontSide
+  });
+}
+
+// Applied to every loaded GLB Buddha instance (per-card AND overview) so the
+// YA/SA/VA Siddham glyphs and the traveling water drop of +LOTUS_SEQUENCE
+// stay clearly visible through the body, regardless of whatever opacity the
+// source .glb materials were originally authored with.
+const BUDDHA_BODY_OPACITY = 0.28;
+function applyBuddhaTransparency(object3D){
+  object3D.traverse((obj) => {
+    if (!obj.isMesh || !obj.material) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    mats.forEach((m) => {
+      m.transparent = true;
+      m.opacity = BUDDHA_BODY_OPACITY;
+      m.depthWrite = false;
+      if ('transmission' in m) m.transmission = Math.max(m.transmission || 0, 0.9);
+      m.side = THREE.DoubleSide;
+      m.needsUpdate = true;
+    });
   });
 }
 
@@ -1082,44 +1103,80 @@ function makeSiddhamSprite(key, worldHeight){
   return sprite;
 }
 
-// A single stylized lotus flower: a ring of petals (each on its own azimuth
-// pivot) plus a stamen sphere, with a setBloom(progress) closer/opener.
-// `colors` is an array (one CSS hex per petal) so the same builder makes
-// both single-color flowers and the 4-color merged bloom.
+// Hoa Sen.stl — the lotus flower model, hosted in the same folder as
+// index.html. Loaded once and cached (centered on its own origin, scaled to
+// a consistent world-space diameter, reoriented so it "faces" scene +Z) so
+// every flower instance below can share the single BufferGeometry and only
+// needs its own material for color + bloom-opacity/scale.
+const LOTUS_STL_FILENAME = 'Hoa Sen.stl';
+const LOTUS_STL_CANDIDATES = [ LOTUS_STL_FILENAME, encodeURI(LOTUS_STL_FILENAME) ];
+const LOTUS_TARGET_DIAMETER = 0.55; // world units — comparable footprint to the previous procedural flower
+// If the loaded flower looks sideways or upside-down, adjust this pitch —
+// most STL exports are authored Y-up, while this scene is Z-up, so the
+// default here rotates the model +90° about X to stand it upright.
+const LOTUS_STL_ROTATION_X = -Math.PI/2;
+const sharedSTLLoader = ('THREE' in window && THREE.STLLoader) ? new THREE.STLLoader() : null;
+let lotusGeometryLoadPromise = null;
+function loadSharedLotusGeometry(){
+  if (lotusGeometryLoadPromise) return lotusGeometryLoadPromise;
+  if (!sharedSTLLoader) { lotusGeometryLoadPromise = Promise.reject(new Error('STLLoader unavailable')); return lotusGeometryLoadPromise; }
+  const tryIndex = (idx) => {
+    if (idx >= LOTUS_STL_CANDIDATES.length) return Promise.reject(new Error('Hoa Sen.stl failed to load from all sources'));
+    const url = LOTUS_STL_CANDIDATES[idx];
+    return new Promise((resolve, reject) => {
+      sharedSTLLoader.load(url, (geometry) => resolve(geometry), undefined,
+        (err) => { console.warn(`Hoa Sen.stl source failed: ${url}`, err); reject(err); });
+    }).catch(() => tryIndex(idx + 1));
+  };
+  lotusGeometryLoadPromise = tryIndex(0).then((geometry) => {
+    geometry.rotateX(LOTUS_STL_ROTATION_X);
+    geometry.computeBoundingBox();
+    const size = new THREE.Vector3(); geometry.boundingBox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const scale = LOTUS_TARGET_DIAMETER / maxDim;
+    geometry.scale(scale, scale, scale);
+    geometry.center();
+    geometry.computeVertexNormals();
+    return geometry;
+  });
+  return lotusGeometryLoadPromise;
+}
+
+// One colored Hoa Sen.stl mesh instance. Starts on a tiny placeholder
+// geometry (so it can already be scaled/positioned/animated) and swaps in
+// the real shared STL geometry the moment it finishes loading.
+function createLotusFlowerMesh(colorHex){
+  const color = new THREE.Color(colorHex);
+  const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.22, roughness:0.35, metalness:0.08, side:THREE.DoubleSide, transparent:true, opacity:0.9 });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.001, 6, 6), mat);
+  loadSharedLotusGeometry()
+    .then((geo) => { mesh.geometry.dispose(); mesh.geometry = geo; })
+    .catch((err) => console.warn('Hoa Sen.stl could not be loaded; lotus flowers will remain as placeholder points.', err));
+  return { mesh, mat };
+}
+
+// A lotus flower built from Hoa Sen.stl. `colors` is an array of CSS hex
+// strings: length 1 for a single-color flower (BLUE/RED/PURPLE/WHITE), or
+// length 4 for the merged heart-center bloom — in which case 4 copies of
+// the model are stacked with a slight yaw/scale/height stagger per copy so
+// all 4 colors read together as one multi-colored flower with no z-fighting.
 function buildLotusFlowerGroup(colors){
   const group = new THREE.Group();
-  const petalRefs = [];
-  colors.forEach((colorHex, i) => {
-    const angle = (i/colors.length) * Math.PI*2;
-    const pivot = new THREE.Group();
-    pivot.rotation.y = angle;
-    group.add(pivot);
-
-    const color = new THREE.Color(colorHex);
-    const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.25, roughness:0.35, metalness:0.05, side:THREE.DoubleSide, transparent:true, opacity:0.9 });
-    const geo = new THREE.SphereGeometry(0.15, 12, 10, 0, Math.PI*2, 0, Math.PI*0.5);
-    geo.scale(0.5, 0.22, 1);    // flatten into an elongated petal lens
-    geo.translate(0, 0, 0.15);  // base near the pivot, tip extends outward
-    const petal = new THREE.Mesh(geo, mat);
-    pivot.add(petal);
-    petalRefs.push({ petal, mat });
+  const instances = colors.map((colorHex, i) => {
+    const { mesh, mat } = createLotusFlowerMesh(colorHex);
+    mesh.rotation.y = (i / colors.length) * Math.PI * 2;
+    const layerScale = 1 - i * 0.045;
+    mesh.scale.setScalar(layerScale);
+    mesh.position.y = i * 0.004;
+    group.add(mesh);
+    return { mat };
   });
-
-  const stamenMat = new THREE.MeshPhysicalMaterial({ color:0xffd54a, emissive:0xffaa00, emissiveIntensity:0.6, roughness:0.3, metalness:0.4, transparent:true, opacity:0.95 });
-  const stamen = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 16), stamenMat);
-  group.add(stamen);
 
   function setBloom(progress){
     const p = Math.max(0, Math.min(1, progress));
-    const tilt = (1-p)*1.15 + p*0.12;   // closed bud (petals angled up) -> open flower (near horizontal)
-    const scale = 0.12 + 0.88*p;
-    petalRefs.forEach(({ petal, mat }) => {
-      petal.rotation.x = -tilt;
-      petal.scale.setScalar(scale);
-      mat.opacity = 0.25 + 0.7*p;
-    });
-    stamen.scale.setScalar(scale);
-    stamenMat.opacity = 0.2 + 0.75*p;
+    const scale = 0.08 + 0.92*p;
+    group.scale.setScalar(scale);
+    instances.forEach(({ mat }) => { mat.opacity = 0.25 + 0.7*p; });
   }
   setBloom(0);
   return { group, setBloom };
@@ -1182,17 +1239,18 @@ function buildLotusSequenceAnimation(root){
     return segMeshes;
   });
 
-  // 4 flowers blooming at the compass targets
+  // 4 flowers (Hoa Sen.stl, each tinted its own color) blooming at the
+  // compass targets: BLUE @ -X, RED @ -Y, PURPLE @ +X, WHITE @ +Y.
   const flowers = PETAL_SPECS.map(spec => {
-    const f = buildLotusFlowerGroup(new Array(8).fill(spec.color));
+    const f = buildLotusFlowerGroup([spec.color]);
     f.group.position.copy(spec.target);
     group.add(f.group);
     return { ...f, homePos: spec.target.clone() };
   });
 
-  // Merged 4-color lotus that blooms at the heart center once the 4
-  // flowers spiral inward and combine
-  const mergedColors = [0,1,2,3,0,1,2,3].map(i => PETAL_SPECS[i].color);
+  // Merged 4-color lotus (4 stacked Hoa Sen.stl copies, one per color) that
+  // blooms at the heart center once the 4 flowers spiral inward and combine.
+  const mergedColors = PETAL_SPECS.map(spec => spec.color);
   const mergedFlower = buildLotusFlowerGroup(mergedColors);
   mergedFlower.group.position.copy(HEART_POS);
   mergedFlower.group.scale.setScalar(0.001);
@@ -1340,6 +1398,7 @@ function initCardViz(container, fields, triggers, statusEl){
   loadSharedBuddhaModel().then((sceneRoot) => {
     const modelInstance = sceneRoot.clone(true);
     fitBuddhaModelToScene(modelInstance);
+    applyBuddhaTransparency(modelInstance);
     rootGroup.add(modelInstance);
     rootGroup.remove(placeholderBuddha);
     if (statusEl && !triggers.length) statusEl.textContent = '';
@@ -1485,6 +1544,7 @@ function initOverviewViz(container){
   loadSharedBuddhaModel().then((sceneRoot) => {
     const modelInstance = sceneRoot.clone(true);
     fitBuddhaModelToScene(modelInstance);
+    applyBuddhaTransparency(modelInstance);
     rootGroup.add(modelInstance);
     rootGroup.remove(placeholderBuddha);
   }).catch(() => { /* keep placeholder */ });
