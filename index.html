@@ -720,11 +720,10 @@ function createOuterBubbleGeometry(phiLength, widthSegs, heightSegs){
 const sharedGLTFLoader = ('THREE' in window && THREE.GLTFLoader) ? new THREE.GLTFLoader() : null;
 
 const BUDDHA_LOCAL_FILENAME = 'glass+buddha+statue+3d+model.glb';
-const BUDDHA_DRIVE_FILE_ID  = '1oXXorykDJrFvKstX8g_npeAenJtpONtT';
+// Google Drive fallback links removed per request — the Buddha model now
+// loads exclusively from the local file above (served alongside index.html).
 const BUDDHA_MODEL_CANDIDATES = [
-  BUDDHA_LOCAL_FILENAME,
-  `https://drive.google.com/uc?export=download&id=${BUDDHA_DRIVE_FILE_ID}`,
-  `https://drive.usercontent.google.com/download?id=${BUDDHA_DRIVE_FILE_ID}&export=download&confirm=t`
+  BUDDHA_LOCAL_FILENAME
 ];
 const BUDDHA_SEAT_Z  = -0.5;   // Lotus Seat, base of the statue
 const BUDDHA_CROWN_Z = 1.0;    // Crown, top of the statue
@@ -1110,7 +1109,7 @@ function makeSiddhamSprite(key, worldHeight){
 // needs its own material for color + bloom-opacity/scale.
 const LOTUS_STL_FILENAME = 'hoa+sen.stl';
 const LOTUS_STL_CANDIDATES = [ LOTUS_STL_FILENAME, encodeURI(LOTUS_STL_FILENAME) ];
-const LOTUS_TARGET_DIAMETER = 0.55; // world units — comparable footprint to the previous procedural flower
+const LOTUS_TARGET_DIAMETER = 0.33; // world units — ~40% smaller than the previous 0.55 footprint
 // hoa+sen.stl is already authored Z-up (matching this scene's up axis), so
 // no corrective pitch is applied. If a future model swap ever comes in
 // Y-up instead, set this back to -Math.PI/2 to stand it upright again.
@@ -1214,7 +1213,7 @@ function buildLotusSequenceAnimation(root){
   const YA_POS = new THREE.Vector3(0, 0, -0.5);
   const SA_POS = new THREE.Vector3(0, 0, 1.0);
   const HEART_POS = new THREE.Vector3(0, 0, 0.2);
-  const VA_POS = new THREE.Vector3(0, 0, 0.45); // lowered: sits near the top of the 4-color merged lotus flower (HEART_POS z=0.2 + ~half flower height)
+  const VA_POS = new THREE.Vector3(0, 0, 0.75);
 
   const PETAL_SPECS = [
     { color:'#3b82f6', target:new THREE.Vector3(-1, 0, 0) }, // BLUE
@@ -1253,9 +1252,9 @@ function buildLotusSequenceAnimation(root){
   root.add(group);
 
   // Siddham glyphs
-  const yaSprite = makeSiddhamSprite('YA', 0.34); yaSprite.position.copy(YA_POS); group.add(yaSprite);
-  const saSprite = makeSiddhamSprite('SA', 0.34); saSprite.position.copy(SA_POS); group.add(saSprite);
-  const vaSprite = makeSiddhamSprite('VA', 0.30); vaSprite.position.copy(VA_POS); group.add(vaSprite);
+  const yaSprite = makeSiddhamSprite('YA', 0.204); yaSprite.position.copy(YA_POS); group.add(yaSprite); // ~40% smaller (was 0.34)
+  const saSprite = makeSiddhamSprite('SA', 0.204); saSprite.position.copy(SA_POS); group.add(saSprite); // ~40% smaller (was 0.34)
+  const vaSprite = makeSiddhamSprite('VA', 0.18); vaSprite.position.copy(VA_POS); group.add(vaSprite); // ~40% smaller (was 0.30)
 
   // Single drop of water traveling SA -> YA (top to bottom), sculpted as a
   // proper falling-raindrop silhouette: a rounded, flattened leading belly
@@ -1305,7 +1304,7 @@ function buildLotusSequenceAnimation(root){
   // this keeps the stem's start (YA, which already sits on the Z axis) and
   // end (the flower's exact position) unchanged, while the middle of the
   // path sweeps around the center.
-  const STEM_SPIRAL_TURNS = 0.10; // ~1/10 turn corkscrew twist at the peak of the smooth sine sweep
+  const STEM_SPIRAL_TURNS = 0.25; // ~1/4 turn corkscrew twist at the peak of the smooth sine sweep
   function applySpiralAroundCentralAxis(points){
     return points.map((p, i) => {
       const tt = i / (points.length - 1);
@@ -1530,9 +1529,13 @@ function initCardViz(container, fields, triggers, statusEl){
     activeExtents.push(Math.hypot(nx||0, ny||0, nz||0) + 0.3);
   }
 
-  // Animation triggers from the Visualization cell
+  // Animation triggers from the Visualization cell.
+  // +LOTUS_SEQUENCE is handled as a special, time-orchestrated case below
+  // (Buddha model loads -> 1s delay -> Bubble of Ego -> 1s delay -> rest of
+  // the Lotus sequence), so it is skipped here and NOT built immediately.
   const activeAnims = [];
   triggers.forEach(trig => {
+    if (trig === 'LOTUS_SEQUENCE') return;
     const anim = buildTriggerAnimation(trig, rootGroup, fields.viz.colorHex);
     if (anim) { activeAnims.push(anim); if (anim.extent) activeExtents.push(anim.extent); }
   });
@@ -1540,6 +1543,43 @@ function initCardViz(container, fields, triggers, statusEl){
 
   scene.add(rootGroup);
   positionCamera();
+
+  // Wraps an animation object so its own internal clock starts at 0 the
+  // moment it is actually added to the scene, rather than inheriting the
+  // card's global elapsed time (which keeps counting from card creation).
+  function wrapAnimWithLocalStart(anim, offsetSeconds){
+    return {
+      extent: anim.extent,
+      update(elapsed){ anim.update(Math.max(0, elapsed - offsetSeconds)); },
+      dispose(){ anim.dispose(); }
+    };
+  }
+
+  const LOTUS_SEQUENCE_STEP_DELAY_MS = 1000; // 1 second between each orchestrated step
+
+  if (triggers.includes('LOTUS_SEQUENCE')) {
+    // Step 1: wait for the Buddha model to finish loading (proceed anyway,
+    // with the procedural placeholder, if it ever fails to load).
+    loadSharedBuddhaModel().catch(() => {}).then(() => {
+      setTimeout(() => {
+        // Step 2: bring in the Bubble of Ego, 1s after the Buddha is ready.
+        const egoOffset = (performance.now() - clockStart) / 1000;
+        const egoAnim = buildEgoAnimation(rootGroup);
+        activeAnims.push(wrapAnimWithLocalStart(egoAnim, egoOffset));
+        if (egoAnim.extent) activeExtents.push(egoAnim.extent);
+
+        setTimeout(() => {
+          // Step 3: 1s after the Bubble of Ego appears, start the rest of
+          // the Lotus sequence (YA -> water drop -> SA -> 4-lotus growth ->
+          // spiral merge -> VA).
+          const lotusOffset = (performance.now() - clockStart) / 1000;
+          const lotusAnim = buildLotusSequenceAnimation(rootGroup, fields.viz.colorHex);
+          activeAnims.push(wrapAnimWithLocalStart(lotusAnim, lotusOffset));
+          if (lotusAnim.extent) activeExtents.push(lotusAnim.extent);
+        }, LOTUS_SEQUENCE_STEP_DELAY_MS);
+      }, LOTUS_SEQUENCE_STEP_DELAY_MS);
+    });
+  }
 
   const clockStart = performance.now();
   let isVisible = true;
