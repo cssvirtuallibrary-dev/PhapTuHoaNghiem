@@ -1568,26 +1568,40 @@ function buildHienLuanAnimation(root, colorHex){
       }
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
-      // Section 3: bursts outward starting exactly AT the crown (r=TIP_Z,
-      // polar angle 0 -> Cartesian (0,0,TIP_Z)) -- not at Z=0. Each of the
-      // 12 rays stays in its OWN fixed, evenly-spaced vertical half-plane
-      // (azimuth = seed.umbrellaAzimuth, set once and never altered here),
-      // like the ribs of an umbrella/dome. Within that fixed plane, each
-      // ray rises smoothly outward and upward together, then gently curves
-      // over and cascades down near the Bubble's inner surface -- radius
-      // and polar angle both ease outward using the SAME smooth curve, so
-      // every ray is a single continuous, evenly-distributed arc with no
-      // seam, giving a smooth dome of evenly spaced rays rather than a
-      // bundle that suddenly fans out.
+      // Section 3: adapted from +TORUS_OUT's evaluateHornTorusPoint() --
+      // same two-phase idea (a narrow near-vertical "trunk" rise, followed
+      // by a smooth outward-and-down curve) but reshaped as a quarter-
+      // ellipse arc so it is guaranteed to stay inside the Bubble of Ego.
+      // All 12 rays share the exact same (r,z) profile -- they are a
+      // single bundle rising straight up out of Section 2 -- but each ray
+      // keeps its OWN fixed, evenly-spaced azimuth (seed.umbrellaAzimuth)
+      // the whole time, so as soon as the profile's radius grows off zero
+      // the rays visibly separate into 12 individual, evenly distributed
+      // rays curving down together, like the ribs of an umbrella/dome.
       const p = (s-S2)/(1-S2);
-      const ease = smooth(p);
-      const maxR = BUBBLE_R*0.985; // reach almost all the way to the Bubble's inner wall -- but never touch/exceed it
-      const r = TIP_Z + ease*(maxR - TIP_Z);
-      const theta = ease*DOME_MAX_THETA; // sweeps smoothly from straight up (0) to cascading down near the wall
+      const maxR = BUBBLE_R*0.985;  // widest reach of the dome -- never touches/exceeds the Bubble wall
+      const TOP_Z = maxR*0.95;      // how high the bundled trunk rises above the crown before curving over
+      const RISE_FRAC = 0.35;       // fraction of this phase spent rising straight up as one bundle (mirrors evaluateHornTorusPoint's tau<0.35 trunk)
+      let r, z;
+      if (p < RISE_FRAC){
+        // Trunk: still bundled together (negligible radius), rising
+        // straight up out of the crown, continuing higher than Z=1.
+        const rp = smooth(p/RISE_FRAC);
+        r = 0.02;
+        z = TIP_Z + rp*(TOP_Z - TIP_Z);
+      } else {
+        // Quarter-ellipse arc: r grows from ~0 to maxR while z eases down
+        // from TOP_Z to 0, tracing one smooth, continuous curve -- this is
+        // where the 12 rays visibly split apart and cascade down near the
+        // Bubble's inner surface, exactly like +TORUS_OUT's outward flare.
+        const ap = smooth((p-RISE_FRAC)/(1-RISE_FRAC));
+        const beta = (Math.PI/2)*(1-ap); // sweeps from PI/2 (top, r=0) down to 0 (equator, r=maxR)
+        r = maxR*Math.cos(beta);
+        z = TOP_Z*Math.sin(beta);
+      }
       const finalAngle = seed.umbrellaAzimuth; // fixed, evenly-spaced heading for this ray -- never changes during the burst
-      x = r*Math.sin(theta)*Math.cos(finalAngle);
-      y = r*Math.sin(theta)*Math.sin(finalAngle);
-      z = r*Math.cos(theta);
+      x = r*Math.cos(finalAngle);
+      y = r*Math.sin(finalAngle);
     }
     outVec.set(x, y, z);
   }
