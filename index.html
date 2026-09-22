@@ -1492,9 +1492,9 @@ function buildHienLuanAnimation(root, colorHex){
   group.add(scaSprite);
 
   // Upper "getting brighter" / lower "getting transparent" hemisphere
-  // overlays, layered on top of the ever-present holdOpen Bubble of Ego
-  // (built separately by the orchestrator) without ever touching that
-  // base bubble's own mesh/material.
+  // overlays (Step 8), layered on top of the ever-present holdOpen Bubble
+  // of Ego (built separately by the orchestrator) without ever touching
+  // that base bubble's own mesh/material.
   function buildHemisphereShell(isUpper, radius){
     const thetaStart = isUpper ? 0 : Math.PI/2;
     const geo = new THREE.SphereGeometry(radius, 40, 24, 0, Math.PI*2, thetaStart, Math.PI/2);
@@ -1506,117 +1506,155 @@ function buildHienLuanAnimation(root, colorHex){
   upperGlowMesh.renderOrder = 4;
   group.add(upperGlowMesh);
 
-  const lowerDimMat = new THREE.MeshBasicMaterial({ color:0x160a24, transparent:true, opacity:0, side:THREE.DoubleSide, depthWrite:false });
+  const lowerDimMat = new THREE.MeshBasicMaterial({ color:0x160a24, transparent:true, opacity:0.5, side:THREE.DoubleSide, depthWrite:false });
   const lowerDimMesh = new THREE.Mesh(buildHemisphereShell(false, BUBBLE_R*0.985), lowerDimMat);
   lowerDimMesh.renderOrder = 4;
   group.add(lowerDimMesh);
 
-  // Energy particle stream: vortex suck-in (below Z=0) -> tightening
-  // inverted-conch spiral through the Buddha's core (Z 0 -> 1), darkness
-  // fading to light -> umbrella burst + cascade across the upper Bubble.
-  const N = 90;
-  const seeds = [];
-  for (let i=0;i<N;i++){
-    seeds.push({
-      startZ: -0.15 - Math.random()*1.7,             // somewhere below Z=0, within the lower Bubble
-      startAngle: Math.random()*Math.PI*2,
-      phase: i / N,                                  // staggers each particle around the shared loop
-      umbrellaAzimuth: Math.random()*Math.PI*2,
-      umbrellaSwirl: (Math.random()<0.5?-1:1) * (0.6+Math.random()*0.8)
-    });
-  }
-  seeds.forEach(s => { s.startR = Math.sqrt(Math.max(0, BUBBLE_R*BUBBLE_R - s.startZ*s.startZ)) * (0.25 + Math.random()*0.65); });
-
-  function glowTexture(hex){
-    const c = document.createElement('canvas'); c.width=64; c.height=64;
-    const ctx = c.getContext('2d'); const g = ctx.createRadialGradient(32,32,0,32,32,32);
-    g.addColorStop(0,'#ffffff'); g.addColorStop(0.3,hex); g.addColorStop(0.7,hex+'66'); g.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=g; ctx.fillRect(0,0,64,64);
-    return new THREE.CanvasTexture(c);
-  }
-  const DARK_COLOR = new THREE.Color(0x1a0f26);
+  const DARK_COLOR = new THREE.Color(0x2a1b3d);
   const LIGHT_COLOR = new THREE.Color(colorHex || '#ffe9a8');
 
-  const positions = new Float32Array(N*3);
-  const colors = new Float32Array(N*3);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const mat = new THREE.PointsMaterial({ size:0.09, map:glowTexture('#ffcf6b'), vertexColors:true, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true });
-  const points = new THREE.Points(geo, mat);
-  group.add(points);
-
-  const LOOP_SECONDS = 4.2;
-  const S1 = 0.34, S2 = 0.72; // phase boundaries: vortex suck-in | conch spiral | umbrella cascade
   const VORTEX_TURNS = 2.6, CONCH_TURNS = 5.5;
+  const S1 = 0.34, S2 = 0.72; // phase boundaries: vortex suck-in | conch spiral | umbrella cascade
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
   const smooth = (x) => x*x*(3-2*x);
-  const tmpColor = new THREE.Color();
   function lerp(a,b,k){ return a + (b-a)*k; }
 
-  function update(t){
-    // Glyph + hemisphere overlays ramp in smoothly once the sequence starts,
-    // then hold steady while the particle stream loops forever.
-    scaSprite.material.opacity = smooth(clamp01(t/1.0));
-    const overlayP = smooth(clamp01((t-0.6)/6.0));
-    upperGlowMat.opacity = overlayP * 0.55;
-    lowerDimMat.opacity = (1-overlayP) * 0.5;
-
-    if (t <= 0.4) { geo.setDrawRange(0,0); return; } // the energy stream only begins once SCA has appeared
-    const activeT = t - 0.4;
-
-    for (let i=0;i<N;i++){
-      const sd = seeds[i];
-      const localT = (activeT + sd.phase*LOOP_SECONDS) % LOOP_SECONDS;
-      const s = localT / LOOP_SECONDS;
-      let x, y, z, r;
-
-      if (s < S1){
-        // Step 5: spirally sucking the dark energy inward/upward toward SCA.
-        const p = smooth(s/S1);
-        z = sd.startZ * (1-p);
-        r = sd.startR * (1-p) + 0.02*p;
-        const angle = sd.startAngle + p*VORTEX_TURNS*Math.PI*2;
+  // Shared trajectory function -- Step 5 (vortex suck-in) -> Step 6 (inverted
+  // conch-shell spiral through the core) -> Step 7 (burst at the crown +
+  // umbrella cascade). Used both for the faint guide streamlines and for
+  // driving each individual dark-energy sphere every frame, exactly like
+  // the streamline + traveling-particle technique used by +TORUS_IN/+TORUS_OUT.
+  const tmpVec = new THREE.Vector3();
+  const tmpColor = new THREE.Color();
+  function energyPointAt(s, seed, outVec, outColor){
+    let x, y, z;
+    if (s < S1){
+      const p = smooth(s/S1);
+      z = seed.startZ * (1-p);
+      const r = seed.startR * (1-p) + 0.02*p;
+      const angle = seed.startAngle + p*VORTEX_TURNS*Math.PI*2;
+      x = r*Math.cos(angle); y = r*Math.sin(angle);
+      outColor.copy(DARK_COLOR);
+    } else if (s < S2){
+      const p = (s-S1)/(S2-S1);
+      z = p*TIP_Z;
+      const r = 1.25*Math.pow(1-p, 1.6) + 0.02;
+      const angle = seed.startAngle + p*CONCH_TURNS*Math.PI*2*(0.5+p);
+      x = r*Math.cos(angle); y = r*Math.sin(angle);
+      outColor.copy(DARK_COLOR).lerp(LIGHT_COLOR, smooth(p));
+    } else {
+      const p = (s-S2)/(1-S2);
+      const launchP = 0.18;
+      if (p < launchP){
+        const lp = smooth(p/launchP);
+        z = TIP_Z + lp*(BUBBLE_R*0.9 - TIP_Z);
+        const r = lp*0.35;
+        const angle = seed.umbrellaAzimuth;
         x = r*Math.cos(angle); y = r*Math.sin(angle);
-        tmpColor.copy(DARK_COLOR);
-      } else if (s < S2){
-        // Step 6: inverted-conch-shell spiral, Z 0 -> 1, large loop -> small
-        // loop, darkness fading toward light as it narrows toward the crown.
-        const p = (s-S1)/(S2-S1);
-        z = p*TIP_Z;
-        r = 1.25*Math.pow(1-p, 1.6) + 0.02;
-        const angle = sd.startAngle + p*CONCH_TURNS*Math.PI*2*(0.5+p);
-        x = r*Math.cos(angle); y = r*Math.sin(angle);
-        tmpColor.copy(DARK_COLOR).lerp(LIGHT_COLOR, smooth(p));
       } else {
-        // Step 7: burst out at Z=1 toward the Bubble's inner boundary, then
-        // cascade down across the upper hemisphere like a water umbrella.
-        const p = (s-S2)/(1-S2);
-        const launchP = 0.18;
-        if (p < launchP){
-          const lp = smooth(p/launchP);
-          z = TIP_Z + lp*(BUBBLE_R*0.9 - TIP_Z);
-          r = lp*0.35;
-          const angle = sd.umbrellaAzimuth;
-          x = r*Math.cos(angle); y = r*Math.sin(angle);
-        } else {
-          const lp = (p-launchP)/(1-launchP);
-          const theta = lerp(0.12, 1.15, lp); // polar angle from the top pole, cascading down the inner shell
-          const rr = BUBBLE_R*0.94;
-          const angle = sd.umbrellaAzimuth + lp*sd.umbrellaSwirl;
-          x = rr*Math.sin(theta)*Math.cos(angle);
-          y = rr*Math.sin(theta)*Math.sin(angle);
-          z = rr*Math.cos(theta);
-        }
-        tmpColor.copy(LIGHT_COLOR);
+        const lp = (p-launchP)/(1-launchP);
+        const theta = lerp(0.12, 1.15, lp); // polar angle from the top pole, cascading down the inner shell
+        const rr = BUBBLE_R*0.94;
+        const angle = seed.umbrellaAzimuth + lp*seed.umbrellaSwirl;
+        x = rr*Math.sin(theta)*Math.cos(angle);
+        y = rr*Math.sin(theta)*Math.sin(angle);
+        z = rr*Math.cos(theta);
       }
-
-      positions[i*3] = x; positions[i*3+1] = y; positions[i*3+2] = z;
-      colors[i*3] = tmpColor.r; colors[i*3+1] = tmpColor.g; colors[i*3+2] = tmpColor.b;
+      outColor.copy(LIGHT_COLOR);
     }
-    geo.setDrawRange(0, N);
-    geo.attributes.position.needsUpdate = true;
-    geo.attributes.color.needsUpdate = true;
+    outVec.set(x, y, z);
+  }
+
+  // ---- Faint guide streamlines (static), drawn once -- exactly the visual
+  // language of +TORUS_IN/+TORUS_OUT's streamline traces, so the vortex ->
+  // conch-spiral -> umbrella-cascade path reads clearly at a glance.
+  const NUM_STREAMLINES = 9;
+  const STREAM_SEGMENTS = 90;
+  const streamlineSeeds = [];
+  for (let i=0;i<NUM_STREAMLINES;i++){
+    const angle = (i/NUM_STREAMLINES) * Math.PI*2;
+    const startZ = -0.35 - (i % 3) * 0.45; // vary starting depth a little between lines
+    const startR = Math.sqrt(Math.max(0, BUBBLE_R*BUBBLE_R - startZ*startZ)) * 0.55;
+    streamlineSeeds.push({ startZ, startAngle: angle, startR, umbrellaAzimuth: angle, umbrellaSwirl: 0.75 });
+  }
+  const streamlineMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0.4, blending:THREE.AdditiveBlending, depthWrite:false });
+  streamlineSeeds.forEach(seed => {
+    const positions = new Float32Array(STREAM_SEGMENTS*3);
+    const colors = new Float32Array(STREAM_SEGMENTS*3);
+    for (let j=0;j<STREAM_SEGMENTS;j++){
+      const s = j/(STREAM_SEGMENTS-1);
+      energyPointAt(s, seed, tmpVec, tmpColor);
+      positions[j*3]=tmpVec.x; positions[j*3+1]=tmpVec.y; positions[j*3+2]=tmpVec.z;
+      colors[j*3]=tmpColor.r; colors[j*3+1]=tmpColor.g; colors[j*3+2]=tmpColor.b;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const line = new THREE.Line(geo, streamlineMat);
+    group.add(line);
+  });
+
+  // ---- Individual dark-energy particles, rendered as real tiny spheres
+  // (not a blurred point-sprite "block") so each one is clearly visible
+  // traveling the vortex -> core -> crown-burst -> cascade path.
+  const N = 40;
+  const sphereGeo = new THREE.SphereGeometry(0.05, 10, 10);
+  const particles = [];
+  for (let i=0;i<N;i++){
+    const startZ = -0.15 - Math.random()*1.7;             // somewhere below Z=0, within the lower Bubble
+    const startAngle = Math.random()*Math.PI*2;
+    const startR = Math.sqrt(Math.max(0, BUBBLE_R*BUBBLE_R - startZ*startZ)) * (0.25 + Math.random()*0.65);
+    const seed = {
+      startZ, startAngle, startR,
+      phase: i / N,                                        // staggers each particle around the shared loop
+      umbrellaAzimuth: Math.random()*Math.PI*2,
+      umbrellaSwirl: (Math.random()<0.5?-1:1) * (0.6+Math.random()*0.8)
+    };
+    const mat = new THREE.MeshBasicMaterial({ color: DARK_COLOR.clone() });
+    const mesh = new THREE.Mesh(sphereGeo, mat);
+    mesh.visible = false;
+    group.add(mesh);
+    particles.push({ seed, mesh, mat });
+  }
+
+  const PARTICLE_LOOP_SECONDS = 3.6; // one full vortex->core->crown->cascade pass per particle
+  const STREAM_START = 0.4;          // energy stream begins shortly after SCA appears
+  const STEP8_START = 10.0;          // Step 8 (hemisphere brighten/fade) becomes visible ~10s in
+  const STEP8_RAMP = 0.4;            // seconds for Step 8 to ease in
+  const STEP8_HOLD = 3.0;            // Step 8 stays visible for 3s
+  const CYCLE = STEP8_START + STEP8_HOLD; // 13s total -- then the whole sequence restarts
+
+  function update(elapsedRaw){
+    const t = elapsedRaw % CYCLE;
+
+    // SCA glyph fades in at the very start of every loop.
+    scaSprite.material.opacity = smooth(clamp01(t/1.0));
+
+    // Step 8: upper Bubble brightens / lower Bubble grows transparent,
+    // gated specifically to appear ~10s in and hold for 3s before the
+    // entire sequence restarts (t wraps back to 0).
+    const overlayP = smooth(clamp01((t - STEP8_START) / STEP8_RAMP));
+    upperGlowMat.opacity = overlayP * 0.6;
+    lowerDimMat.opacity = (1 - overlayP) * 0.5;
+
+    // Streamlines fade in alongside the energy stream itself.
+    streamlineMat.opacity = 0.4 * smooth(clamp01((t - STREAM_START) / 1.0));
+
+    if (t <= STREAM_START) {
+      particles.forEach(p => { p.mesh.visible = false; });
+      return;
+    }
+    const activeT = t - STREAM_START;
+
+    particles.forEach(p => {
+      const localT = (activeT + p.seed.phase*PARTICLE_LOOP_SECONDS) % PARTICLE_LOOP_SECONDS;
+      const s = localT / PARTICLE_LOOP_SECONDS;
+      energyPointAt(s, p.seed, tmpVec, tmpColor);
+      p.mesh.position.copy(tmpVec);
+      p.mat.color.copy(tmpColor);
+      p.mesh.visible = true;
+    });
   }
   update(0);
 
