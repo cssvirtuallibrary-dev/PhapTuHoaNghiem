@@ -1569,32 +1569,22 @@ function buildHienLuanAnimation(root, colorHex){
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
       // Section 3: bursts outward starting exactly AT the crown (r=TIP_Z,
-      // polar angle 0 -> Cartesian (0,0,TIP_Z)) -- not at Z=0. ALL 12 rays
-      // first rise STRAIGHT UP together, bundled close to the vertical
-      // axis, climbing almost all the way to the Bubble's inner surface --
-      // and only once they are that high do they finally fan outward and
-      // cascade down near the inner wall. Both the outward fan (azimuth
-      // spread) and the downward arc (polar angle) are deliberately held
-      // back until very late in this phase, so the rise reads as tall and
-      // unhurried, matching the "straight up first, cascade only near the
-      // Bubble's surface" look of the green reference annotations.
+      // polar angle 0 -> Cartesian (0,0,TIP_Z)) -- not at Z=0. Each of the
+      // 12 rays stays in its OWN fixed, evenly-spaced vertical half-plane
+      // (azimuth = seed.umbrellaAzimuth, set once and never altered here),
+      // like the ribs of an umbrella/dome. Within that fixed plane, each
+      // ray rises smoothly outward and upward together, then gently curves
+      // over and cascades down near the Bubble's inner surface -- radius
+      // and polar angle both ease outward using the SAME smooth curve, so
+      // every ray is a single continuous, evenly-distributed arc with no
+      // seam, giving a smooth dome of evenly spaced rays rather than a
+      // bundle that suddenly fans out.
       const p = (s-S2)/(1-S2);
-      const RISE_FRACTION = 0.7;  // rays travel bundled/straight-up for 70% of this phase
+      const ease = smooth(p);
       const maxR = BUBBLE_R*0.985; // reach almost all the way to the Bubble's inner wall -- but never touch/exceed it
-      const RISE_MAX_R = maxR*0.93; // how high the near-vertical rise climbs before cascading
-      let r, theta, fanK;
-      if (p < RISE_FRACTION){
-        const rp = smooth(p/RISE_FRACTION);
-        r = TIP_Z + rp*(RISE_MAX_R - TIP_Z); // rises steadily, straight up, well above the crown
-        theta = rp*0.05; // rays stay bundled, almost perfectly vertical, during the whole rise
-        fanK = rp*0.05;  // negligible azimuthal spread while rising -- rays stay grouped together
-      } else {
-        const ap = smooth((p-RISE_FRACTION)/(1-RISE_FRACTION));
-        r = RISE_MAX_R + ap*(maxR - RISE_MAX_R);
-        theta = 0.05 + ap*(DOME_MAX_THETA-0.05); // only now arcs outward and cascades down, near the inner surface
-        fanK = 0.05 + ap*0.95; // only now do the rays fan out into their own directions
-      }
-      const finalAngle = seed.umbrellaAzimuth * fanK; // interpolate azimuthal spread from 0 (bundled, straight up) to full spread (fanned out, cascading)
+      const r = TIP_Z + ease*(maxR - TIP_Z);
+      const theta = ease*DOME_MAX_THETA; // sweeps smoothly from straight up (0) to cascading down near the wall
+      const finalAngle = seed.umbrellaAzimuth; // fixed, evenly-spaced heading for this ray -- never changes during the burst
       x = r*Math.sin(theta)*Math.cos(finalAngle);
       y = r*Math.sin(theta)*Math.sin(finalAngle);
       z = r*Math.cos(theta);
