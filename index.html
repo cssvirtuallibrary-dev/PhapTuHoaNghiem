@@ -1214,7 +1214,7 @@ function buildLotusSequenceAnimation(root){
   const YA_POS = new THREE.Vector3(0, 0, -0.5);
   const SA_POS = new THREE.Vector3(0, 0, 1.0);
   const HEART_POS = new THREE.Vector3(0, 0, 0.2);
-  const VA_POS = new THREE.Vector3(0, 0, 0.75);
+  const VA_POS = new THREE.Vector3(0, 0, 0.45); // lowered: sits near the top of the 4-color merged lotus flower (HEART_POS z=0.2 + ~half flower height)
 
   const PETAL_SPECS = [
     { color:'#3b82f6', target:new THREE.Vector3(-1, 0, 0) }, // BLUE
@@ -1305,7 +1305,7 @@ function buildLotusSequenceAnimation(root){
   // this keeps the stem's start (YA, which already sits on the Z axis) and
   // end (the flower's exact position) unchanged, while the middle of the
   // path sweeps around the center.
-  const STEM_SPIRAL_TURNS = 0.25; // ~1/4 turn corkscrew twist at the peak of the smooth sine sweep
+  const STEM_SPIRAL_TURNS = 0.10; // ~1/10 turn corkscrew twist at the peak of the smooth sine sweep
   function applySpiralAroundCentralAxis(points){
     return points.map((p, i) => {
       const tt = i / (points.length - 1);
