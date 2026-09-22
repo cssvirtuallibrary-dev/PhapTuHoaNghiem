@@ -1491,60 +1491,39 @@ function buildHienLuanAnimation(root, colorHex){
   scaSprite.material.opacity = 0;
   group.add(scaSprite);
 
-  // ---- Step 8 glow: a SINGLE continuous full-sphere shell (never split
-  // into two separate hemisphere meshes), whose per-vertex brightness
-  // gradient sweeps smoothly downward from the crown as the sequence
-  // progresses. Because it is one unbroken mesh with a soft vertex-color
-  // gradient (recomputed each frame) rather than two meshes stitched at
-  // Z=0, there is no seam/edge/"dark block" at the equator -- the lower
-  // portion simply stays untouched (i.e. reads as more transparent) while
-  // the upper portion glows brighter.
-  const glowShellRadius = BUBBLE_R * 0.985;
-  const glowGeo = new THREE.SphereGeometry(glowShellRadius, 48, 32);
-  glowGeo.rotateX(Math.PI/2); glowGeo.rotateZ(-Math.PI/2); // match createOuterBubbleGeometry's orientation
-  const glowVertexCount = glowGeo.attributes.position.count;
-  const glowBaseZ = new Float32Array(glowVertexCount);
-  for (let i=0;i<glowVertexCount;i++){ glowBaseZ[i] = glowGeo.attributes.position.getZ(i) / glowShellRadius; }
-  const glowColorAttr = new THREE.BufferAttribute(new Float32Array(glowVertexCount*3), 3);
-  glowGeo.setAttribute('color', glowColorAttr);
-  const glowMat = new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false });
-  const glowMesh = new THREE.Mesh(glowGeo, glowMat);
-  glowMesh.renderOrder = 4;
-  group.add(glowMesh);
-  const glowColor = new THREE.Color(0xfff3c0);
-  function updateGlowShell(progress){
-    // boundary sweeps from the very top (zNorm=1, nothing lit) down toward
-    // the bottom (zNorm=-1, fully lit) as progress goes 0 -> 1, with a wide
-    // soft transition band so the gradient is continuous, never a hard edge.
-    const boundary = 1 - progress*2;
-    const softness = 0.55;
-    for (let i=0;i<glowVertexCount;i++){
-      const zNorm = glowBaseZ[i];
-      let g = (zNorm - (boundary - softness)) / (2*softness);
-      g = Math.max(0, Math.min(1, g));
-      g = g*g*(3-2*g); // smoothstep
-      glowColorAttr.setXYZ(i, glowColor.r*g, glowColor.g*g, glowColor.b*g);
-    }
-    glowColorAttr.needsUpdate = true;
-  }
-  updateGlowShell(0);
+  // ---- Step 8 (upper Bubble brighten / lower Bubble fade) is DISABLED FOR
+  // NOW per request -- left in place (inert) so it can be re-enabled later
+  // without rebuilding this whole sequence.
+  const STEP8_ENABLED = false;
+  const glowMat = { opacity: 0 }; // inert stand-in so update() below stays simple
 
-  // ---- 3-section trajectory: Step 5 (brown vortex converging to SCA),
-  // Step 6 (blue inverted-conch spiral through the core, ~4.5 loops, Z 0->1),
-  // Step 7 (light burst at the crown + umbrella cascade across the upper
-  // Bubble) -- rendered exactly in the "TORUS" visual language: thin glowing
-  // streamlines tracing the whole path, plus small glowing point particles
-  // continuously flowing along them.
+  // ---- 3-section trajectory:
+  //   Section 1 (brown)  -- wide, smooth converging arcs sweeping in from
+  //                         the lower Bubble toward the SCA Siddham at the
+  //                         origin (few gentle turns, like the reference
+  //                         image's broad converging root/ray lines -- NOT
+  //                         a tight multi-turn vortex).
+  //   Section 2 (blue)   -- inverted-conch-shell spiral through the core,
+  //                         hugging close to the Buddha's body, showing
+  //                         only ~4-5 clean loops from Z=0 up to the crown.
+  //   Section 3 (light)  -- energy bursts from the crown and sweeps out
+  //                         across the upper Bubble in ONE continuous,
+  //                         smooth spherical-spiral dome (no kink between
+  //                         "launch" and "cascade" -- radius and polar
+  //                         angle both ease outward together).
   const BROWN_COLOR = new THREE.Color(0x9a6a34);
   const BLUE_COLOR  = new THREE.Color(0x29b6f6);
   const LIGHT_COLOR = new THREE.Color(colorHex || '#ffe9a8');
-  const S1 = 0.34, S2 = 0.70; // phase boundaries: brown vortex | blue conch spiral | light umbrella cascade
+  const S1 = 0.36, S2 = 0.70; // phase boundaries: brown converge | blue conch spiral | light dome burst
   const BLEND_BAND = 0.05;    // soft crossfade width at each phase boundary
-  const VORTEX_TURNS = 2.4;
-  const CONCH_TURNS = 4.5;    // "between 4-5 loops", exactly as requested
+  const CONVERGE_TURNS = 1.1; // wide, gentle converging arcs -- not a tight vortex
+  const CONCH_TURNS = 4.5;    // "about 4-5 loops", exactly as requested
+  const CONCH_MAX_R = 0.55;   // hugs close to the Buddha's body -- not too wide
+  const DOME_MAX_THETA = 1.3; // polar angle (radians) the dome burst sweeps down to (~74 deg from the pole)
 
-  const tmpColorA = new THREE.Color();
-  const tmpColorB = new THREE.Color();
+  const smooth = (x) => x*x*(3-2*x);
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
   function phaseColorAt(s, outColor){
     if (s < S1 - BLEND_BAND) { outColor.copy(BROWN_COLOR); return; }
     if (s < S1 + BLEND_BAND) { const k=(s-(S1-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(BROWN_COLOR).lerp(BLUE_COLOR, k); return; }
@@ -1556,63 +1535,58 @@ function buildHienLuanAnimation(root, colorHex){
   function energyPointAt(s, seed, outVec){
     let x, y, z;
     if (s < S1){
-      // Step 5: brown dark energy spiraling inward/upward, converging to a
-      // point at the SCA Siddham (the origin), below Z=0 but always kept
-      // within the Bubble of Ego boundary.
+      // Section 1: wide, smooth arcs converging from the lower Bubble
+      // (below Z=0, but always within the Bubble of Ego boundary) inward
+      // and upward toward the SCA Siddham at the origin -- a broad sweep
+      // with only a little more than one full turn, not a tight vortex.
       const p = s/S1;
-      const ease = p*p*(3-2*p);
+      const ease = smooth(p);
       z = seed.startZ * (1-ease);
-      const r = seed.startR * (1-ease) + 0.015*ease;
-      const angle = seed.startAngle + ease*VORTEX_TURNS*Math.PI*2;
+      const r = seed.startR * (1-ease*ease) + 0.01*ease; // slow shrink at first, wide sweep, converges at the end
+      const angle = seed.startAngle + ease*CONVERGE_TURNS*Math.PI*2;
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else if (s < S2){
-      // Step 6: blue inverted-conch-shell spiral -- exactly ~4.5 tightening
-      // loops from a wide mouth at Z=0 up to a narrow tip at Z=1 (the crown).
+      // Section 2: blue inverted-conch-shell spiral -- ~4.5 tightening
+      // loops, hugging close to the Buddha's body, from Z=0 up to Z=1.
       const p = (s-S1)/(S2-S1);
       z = p*TIP_Z;
-      const r = 1.15*Math.pow(1-p, 1.5) + 0.015;
+      const r = CONCH_MAX_R*Math.pow(1-p, 1.3) + 0.01;
       const angle = seed.startAngle + p*CONCH_TURNS*Math.PI*2;
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
-      // Step 7: light energy bursts out at the crown (Z=1) toward the
-      // Bubble's inner boundary, then cascades back down across the upper
-      // hemisphere like an umbrella of light -- the same visual technique
-      // as +TORUS_OUT's outward-and-down streamline flow.
+      // Section 3: light energy bursts from the crown and sweeps outward
+      // across the upper Bubble in ONE continuous, smooth spherical spiral
+      // -- radius and polar angle ease outward together (no seam/kink),
+      // producing a smooth dome shape rather than two separate motions.
       const p = (s-S2)/(1-S2);
-      const launchP = 0.16;
-      if (p < launchP){
-        const lp = p/launchP; const ease = lp*lp*(3-2*lp);
-        z = TIP_Z + ease*(BUBBLE_R*0.92 - TIP_Z);
-        const r = ease*0.3;
-        x = r*Math.cos(seed.umbrellaAzimuth); y = r*Math.sin(seed.umbrellaAzimuth);
-      } else {
-        const lp = (p-launchP)/(1-launchP);
-        const theta = 0.1 + lp*1.25; // polar angle from the top pole, cascading down the inner shell
-        const rr = BUBBLE_R*0.94;
-        const angle = seed.umbrellaAzimuth + lp*seed.umbrellaSwirl;
-        x = rr*Math.sin(theta)*Math.cos(angle);
-        y = rr*Math.sin(theta)*Math.sin(angle);
-        z = rr*Math.cos(theta);
-      }
+      const ease = smooth(p);
+      const r = BUBBLE_R*0.94*Math.sin(ease*Math.PI/2);
+      const theta = ease*DOME_MAX_THETA;
+      const angle = seed.umbrellaAzimuth + ease*seed.umbrellaSwirl;
+      x = r*Math.sin(theta)*Math.cos(angle);
+      y = r*Math.sin(theta)*Math.sin(angle);
+      z = r*Math.cos(theta);
     }
     outVec.set(x, y, z);
   }
 
-  // ---- Streamlines (static full paths, colored per-section) -- exactly
-  // the "TORUS" visual language shown in the reference images: thin,
-  // glowing, additively-blended lines tracing the whole flow.
-  const NUM_STREAMLINES = 12;
+  // ---- Streamlines (static full paths, colored per-section) -- the
+  // "TORUS" visual language: thin, glowing, additively-blended lines
+  // tracing the whole flow. Kept to a modest count so the ~4-5 blue loops
+  // read cleanly instead of looking like many overlapping coils.
+  const NUM_STREAMLINES = 6;
   const STREAM_SEGMENTS = 110;
   const streamSeeds = [];
   for (let i=0;i<NUM_STREAMLINES;i++){
     const angle = (i/NUM_STREAMLINES) * Math.PI*2;
-    const startZ = -0.3 - (i % 4) * 0.4; // vary starting depth a little between lines
-    const startR = Math.sqrt(Math.max(0, BUBBLE_R*BUBBLE_R - startZ*startZ)) * 0.5;
-    streamSeeds.push({ startZ, startAngle: angle, startR, umbrellaAzimuth: angle, umbrellaSwirl: 0.7 });
+    const startZ = -0.35 - (i % 3) * 0.5; // vary starting depth a little between lines
+    const startR = Math.sqrt(Math.max(0, BUBBLE_R*BUBBLE_R - startZ*startZ)) * 0.6;
+    streamSeeds.push({ startZ, startAngle: angle, startR, umbrellaAzimuth: angle, umbrellaSwirl: 0.5 });
   }
   const streamPositions = new Float32Array(NUM_STREAMLINES*STREAM_SEGMENTS*3);
   const streamColors = new Float32Array(NUM_STREAMLINES*STREAM_SEGMENTS*3);
   const streamVec = new THREE.Vector3();
+  const tmpColorA = new THREE.Color();
   streamSeeds.forEach((seed, si) => {
     for (let j=0;j<STREAM_SEGMENTS;j++){
       const s = j/(STREAM_SEGMENTS-1);
@@ -1624,7 +1598,6 @@ function buildHienLuanAnimation(root, colorHex){
     }
   });
   const streamlineMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
-  const streamlineLines = [];
   for (let si=0; si<NUM_STREAMLINES; si++){
     const geo = new THREE.BufferGeometry();
     const posSlice = streamPositions.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
@@ -1633,7 +1606,6 @@ function buildHienLuanAnimation(root, colorHex){
     geo.setAttribute('color', new THREE.BufferAttribute(colSlice, 3));
     const line = new THREE.Line(geo, streamlineMat);
     group.add(line);
-    streamlineLines.push(line);
   }
 
   // ---- Flowing point particles: small glowing dots continuously traveling
@@ -1646,7 +1618,7 @@ function buildHienLuanAnimation(root, colorHex){
     ctx.fillStyle=g; ctx.fillRect(0,0,64,64);
     return new THREE.CanvasTexture(c);
   }
-  const PARTICLES_PER_STREAMLINE = 3;
+  const PARTICLES_PER_STREAMLINE = 4;
   const totalParticles = NUM_STREAMLINES * PARTICLES_PER_STREAMLINE;
   const particlePositions = new Float32Array(totalParticles*3);
   const particleColors = new Float32Array(totalParticles*3);
@@ -1659,13 +1631,12 @@ function buildHienLuanAnimation(root, colorHex){
 
   const PARTICLE_LOOP_SECONDS = 3.6; // one full brown->blue->light pass per particle
   const STREAM_START = 0.4;          // energy stream begins shortly after SCA appears
-  const STEP8_START = 10.0;          // Step 8 (upper-Bubble glow) becomes visible ~10s in
-  const STEP8_RAMP = 0.4;            // seconds for Step 8 to ease in
-  const STEP8_HOLD = 3.0;            // Step 8 stays visible for 3s
+  const STEP8_START = 10.0;          // (inert while STEP8_ENABLED = false)
+  const STEP8_RAMP = 0.4;
+  const STEP8_HOLD = 3.0;
   const CYCLE = STEP8_START + STEP8_HOLD; // 13s total -- then the whole sequence restarts
 
-  const clamp01 = (x) => Math.max(0, Math.min(1, x));
-  const smooth = (x) => x*x*(3-2*x);
+  const tmpColorB = new THREE.Color();
 
   function update(elapsedRaw){
     const t = elapsedRaw % CYCLE;
@@ -1673,12 +1644,9 @@ function buildHienLuanAnimation(root, colorHex){
     // SCA glyph fades in at the very start of every loop.
     scaSprite.material.opacity = smooth(clamp01(t/1.0));
 
-    // Step 8: the upper Bubble glows brighter via one continuous, seamless
-    // shell -- gated to appear ~10s in and hold for 3s before the entire
-    // sequence restarts (t wraps back to 0).
-    const overlayP = smooth(clamp01((t - STEP8_START) / STEP8_RAMP));
-    glowMat.opacity = overlayP * 0.85;
-    if (overlayP > 0) updateGlowShell(overlayP);
+    // Step 8 disabled for now -- kept as an inert no-op so it can be
+    // switched back on later without touching the rest of the sequence.
+    if (STEP8_ENABLED) { /* intentionally left blank while disabled */ }
 
     // Streamlines + flowing particles fade in alongside the energy stream.
     const streamFade = smooth(clamp01((t - STREAM_START) / 1.0));
