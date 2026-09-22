@@ -1165,22 +1165,37 @@ function buildLotusFlowerGroup(colors){
   const instances = colors.map((colorHex, i) => {
     const { mesh, mat } = createLotusFlowerMesh(colorHex);
     mesh.rotation.z = (i / colors.length) * Math.PI * 2; // yaw about the scene's vertical (Z) axis
-    const layerScale = 1 - i * 0.045;
+    // Scale/height falloff is relative to layer count so this works
+    // equally well for a single-color flower (1 layer) or the richly
+    // multi-color merged bloom (12 layers).
+    const layerScale = 1 - (i / colors.length) * 0.32;
     mesh.scale.setScalar(layerScale);
-    mesh.position.z = i * 0.004; // tiny vertical stagger to avoid z-fighting between stacked layers
+    mesh.position.z = i * 0.0018; // tiny vertical stagger to avoid z-fighting between stacked layers
     group.add(mesh);
     return { mat };
   });
 
-  // A multi-color bloom (heart-center merge) gets a small golden seed-pod
-  // at its center, like a real lotus, so the layered tints read as one
-  // naturally-colored flower rather than flat stacked slices.
-  let stamenMat = null, stamen = null;
+  // A multi-color bloom (heart-center merge) gets a golden seed-pod plus a
+  // ring of fine upright stamen filaments at its center, like a real lotus,
+  // so the layered tints read as one naturally-colored flower with a full
+  // floral center rather than flat stacked slices.
+  let stamenMat = null, stamen = null, filamentMat = null;
   if (colors.length > 1){
     stamenMat = new THREE.MeshPhysicalMaterial({ color:0xffc107, emissive:0xff9800, emissiveIntensity:0.5, roughness:0.35, metalness:0.4, transparent:true, opacity:0.95 });
     stamen = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 16), stamenMat);
-    stamen.position.z = 0.05;
+    stamen.position.z = 0.055;
     group.add(stamen);
+
+    filamentMat = new THREE.MeshStandardMaterial({ color:0xffb300, emissive:0xff9800, emissiveIntensity:0.4, roughness:0.4, metalness:0.3, transparent:true, opacity:0.9 });
+    const FIL_COUNT = 18;
+    for (let fi=0; fi<FIL_COUNT; fi++){
+      const ang = (fi/FIL_COUNT) * Math.PI*2;
+      const fr = 0.07;
+      const fil = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.05, 6), filamentMat);
+      fil.position.set(Math.cos(ang)*fr, Math.sin(ang)*fr, 0.05);
+      fil.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1));
+      group.add(fil);
+    }
   }
 
   function setBloom(progress){
@@ -1189,6 +1204,7 @@ function buildLotusFlowerGroup(colors){
     group.scale.setScalar(scale);
     instances.forEach(({ mat }) => { mat.opacity = 0.25 + 0.7*p; });
     if (stamenMat) stamenMat.opacity = 0.2 + 0.75*p;
+    if (filamentMat) filamentMat.opacity = (0.2 + 0.75*p) * 0.9;
   }
   setBloom(0);
   return { group, setBloom };
@@ -1202,36 +1218,35 @@ function buildLotusSequenceAnimation(root){
 
   const PETAL_SPECS = [
     { color:'#3b82f6', target:new THREE.Vector3(-1, 0, 0) }, // BLUE
-    { color:'#e53935', target:new THREE.Vector3(0, -1, 0) }, // RED
-    { color:'#4a148c', target:new THREE.Vector3(1, 0, 0) },  // PURPLE (deep true purple, was reading orange)
+    { color:'#c62828', target:new THREE.Vector3(0, -1, 0) }, // RED (deeper/truer red, was reading orange)
+    { color:'#4a148c', target:new THREE.Vector3(1, 0, 0) },  // PURPLE (deep true purple)
     { color:'#f5f5f5', target:new THREE.Vector3(0, 1, 0) }   // WHITE
   ];
 
-  // Water droplet travel endpoints (PURPLE position -> BLUE position),
-  // independent of the YA/SA glyph placements.
-  const DROP_START = new THREE.Vector3(1, 0, 0);
-  const DROP_END   = new THREE.Vector3(-1, 0, 0);
+  // Water droplet travel endpoints: SA -> YA, straight down the vertical axis.
+  const DROP_START = SA_POS.clone();
+  const DROP_END   = new THREE.Vector3(0, 0, -1.0);
 
-  // A wider, naturally-blended 8-stop palette for the merged heart-center
-  // bloom: interpolates through transitional hues (indigo, magenta/rose,
-  // pale lavender) between the 4 base colors so the flower reads as one
-  // smoothly multi-colored bloom instead of 4 flat quadrants.
+  // A richer, naturally-blended palette for the merged heart-center bloom —
+  // modeled on a real multi-color lotus photo reference: cycles through
+  // blue, indigo, deep purple, magenta/crimson, red, coral, pale lavender,
+  // white, and ice-blue so the flower reads as one smoothly graded bloom
+  // (like overlapping petals of different hues) rather than 4 flat quadrants.
   function buildNaturalMergedPalette(){
-    const BLUE = new THREE.Color(PETAL_SPECS[0].color);
-    const RED = new THREE.Color(PETAL_SPECS[1].color);
-    const PURPLE = new THREE.Color(PETAL_SPECS[2].color);
-    const WHITE = new THREE.Color(PETAL_SPECS[3].color);
-    const mid = (a, b) => new THREE.Color().lerpColors(a, b, 0.5);
     return [
-      BLUE,
-      mid(BLUE, PURPLE),
-      PURPLE,
-      mid(PURPLE, RED),
-      RED,
-      mid(RED, WHITE),
-      WHITE,
-      mid(WHITE, BLUE)
-    ].map(c => '#' + c.getHexString());
+      '#1e88e5', // blue
+      '#3949ab', // blue-indigo
+      '#4a148c', // deep purple
+      '#8e24aa', // purple-magenta
+      '#ad1457', // magenta-crimson
+      '#c62828', // true red
+      '#ef6c4d', // coral
+      '#ffccbc', // pale peach-pink
+      '#f5f5f5', // white
+      '#cfe8fb', // ice blue
+      '#64b5f6', // light blue
+      '#1e88e5'  // back toward blue for a smooth wraparound
+    ];
   }
 
   const group = new THREE.Group();
@@ -1242,10 +1257,38 @@ function buildLotusSequenceAnimation(root){
   const saSprite = makeSiddhamSprite('SA', 0.34); saSprite.position.copy(SA_POS); group.add(saSprite);
   const vaSprite = makeSiddhamSprite('VA', 0.30); vaSprite.position.copy(VA_POS); group.add(vaSprite);
 
-  // Single drop of water traveling YA -> SA
-  const dropMat = new THREE.MeshPhysicalMaterial({ color:0xbfe9ff, transmission:0.9, roughness:0.05, thickness:0.2, ior:1.33, transparent:true, opacity:0 });
-  const dropMesh = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 16), dropMat);
+  // Single drop of water traveling SA -> YA (top to bottom), sculpted as a
+  // proper falling-raindrop silhouette: a rounded, flattened leading belly
+  // (the side facing the direction of travel) tapering to a fine trailing
+  // point (the side facing backward, i.e. "up"), like a real drop of water
+  // stretched by its own fall — plus a small bright catch-light highlight
+  // for a wet, glossy look.
+  function buildWaterDropGeometry(radius){
+    const pts = [
+      new THREE.Vector2(0.00, 1.00),   // trailing tip (points backward/up)
+      new THREE.Vector2(0.14, 0.68),
+      new THREE.Vector2(0.32, 0.30),
+      new THREE.Vector2(0.46, -0.05),
+      new THREE.Vector2(0.42, -0.42),
+      new THREE.Vector2(0.24, -0.75),
+      new THREE.Vector2(0.00, -0.95)   // rounded leading belly (faces direction of travel)
+    ].map(p => new THREE.Vector2(p.x*radius, p.y*radius));
+    const geo = new THREE.LatheGeometry(pts, 24);
+    geo.computeVertexNormals();
+    return geo;
+  }
+  const dropMat = new THREE.MeshPhysicalMaterial({ color:0xbfe9ff, transmission:0.92, roughness:0.03, thickness:0.22, ior:1.33, transparent:true, opacity:0, clearcoat:1.0, clearcoatRoughness:0.05 });
+  const dropMesh = new THREE.Mesh(buildWaterDropGeometry(0.07), dropMat);
+  // Orient the drop so its trailing tip points opposite the direction of
+  // travel (i.e. "backward/up"), and its rounded belly leads the fall —
+  // exactly like a real drop of water dropping down.
+  const dropTravelDir = new THREE.Vector3().subVectors(DROP_END, DROP_START).normalize();
+  dropMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dropTravelDir.clone().negate());
   group.add(dropMesh);
+  const dropHighlightMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0 });
+  const dropHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 10), dropHighlightMat);
+  dropHighlight.position.set(0.022, 0.022, 0.02);
+  dropMesh.add(dropHighlight);
   const dropLight = new THREE.PointLight(0xaee3ff, 0, 1.2);
   group.add(dropLight);
 
@@ -1325,6 +1368,7 @@ function buildLotusSequenceAnimation(root){
     const dp = progressOf(t, T_DROP);
     const dropActive = t >= T_DROP[0] && t <= T_DROP[1] + 0.15;
     dropMat.opacity = dropActive ? (dp < 0.92 ? 0.95 : lerp(0.95, 0, (dp-0.92)/0.08)) : 0;
+    dropHighlightMat.opacity = dropMat.opacity * 0.9;
     dropLight.intensity = dropActive ? 1.1 * (1 - Math.abs(dp-0.5)*0.6) : 0;
     if (dropActive){
       dropMesh.position.lerpVectors(DROP_START, DROP_END, smooth(dp));
