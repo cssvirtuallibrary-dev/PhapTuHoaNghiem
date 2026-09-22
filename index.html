@@ -1305,7 +1305,7 @@ function buildLotusSequenceAnimation(root){
   // this keeps the stem's start (YA, which already sits on the Z axis) and
   // end (the flower's exact position) unchanged, while the middle of the
   // path sweeps around the center.
-  const STEM_SPIRAL_TURNS = 0.9;
+  const STEM_SPIRAL_TURNS = 0.25; // ~1/4 turn corkscrew twist at the peak of the smooth sine sweep
   function applySpiralAroundCentralAxis(points){
     return points.map((p, i) => {
       const tt = i / (points.length - 1);
