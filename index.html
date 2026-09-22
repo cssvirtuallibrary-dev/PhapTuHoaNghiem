@@ -1218,7 +1218,7 @@ function buildLotusSequenceAnimation(root){
 
   const PETAL_SPECS = [
     { color:'#3b82f6', target:new THREE.Vector3(-1, 0, 0) }, // BLUE
-    { color:'#c62828', target:new THREE.Vector3(0, -1, 0) }, // RED (deeper/truer red, was reading orange)
+    { color:'#FF0000', target:new THREE.Vector3(0, -1, 0) }, // RED (pure red)
     { color:'#4a148c', target:new THREE.Vector3(1, 0, 0) },  // PURPLE (deep true purple)
     { color:'#f5f5f5', target:new THREE.Vector3(0, 1, 0) }   // WHITE
   ];
@@ -1298,15 +1298,18 @@ function buildLotusSequenceAnimation(root){
   const STEM_SEGMENTS = 14;
   const stemMat = new THREE.MeshStandardMaterial({ color:0x2e7d32, roughness:0.6, metalness:0.05 });
   const stems = PETAL_SPECS.map(spec => {
-    // Direct growth path from YA straight out to this flower's position —
-    // a gentle arc toward the target itself, rather than first rising
-    // through the central Z column (heart-center height) before bending
-    // outward.
-    const mid = new THREE.Vector3().lerpVectors(YA_POS, spec.target, 0.5);
-    mid.z += 0.18; // slight natural upward arch along the direct path
+    // Direct growth path from YA out to this flower's position, but with
+    // the final approach rising straight up (Z-up) into the flower's base
+    // -- like a real stem growing upward into its blossom -- rather than
+    // curving in flat/sideways from the side.
+    const mid = new THREE.Vector3().lerpVectors(YA_POS, spec.target, 0.42);
+    mid.z += 0.12; // gentle natural arch through the middle of the path
+    const preTarget = spec.target.clone();
+    preTarget.z -= 0.32; // approach point directly below the flower
     const curve = new THREE.CatmullRomCurve3([
       YA_POS.clone(),
       mid,
+      preTarget,
       spec.target.clone()
     ]);
     const points = curve.getPoints(STEM_SEGMENTS);
