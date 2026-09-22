@@ -1568,42 +1568,46 @@ function buildHienLuanAnimation(root, colorHex){
       }
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
-      // Section 3: adapted from +TORUS_OUT's evaluateHornTorusPoint() --
-      // same two-phase idea (a narrow near-vertical "trunk" rise, followed
-      // by a smooth outward-and-down flare) reshaped as a quarter-ellipse
-      // arc so the whole burst stays safely inside the Bubble of Ego.
-      // IMPORTANT: the trunk stops well BELOW the Bubble's wall (only
-      // ~38% of the remaining distance up), leaving plenty of room for a
-      // wide, gradual dome flare -- earlier attempts let the trunk rise
-      // almost all the way to the wall first, which made all 12 rays
-      // look like they radiated from one single cramped point near the
-      // top instead of forming a smooth, spread-out dome.
-      // All 12 rays share this exact same (r,z) profile -- a single
-      // bundle rising straight up out of Section 2 -- but each ray keeps
-      // its OWN fixed, evenly-spaced azimuth (seed.umbrellaAzimuth) the
-      // whole time, so as the profile's radius grows the rays gradually
-      // separate into 12 individual, evenly distributed ribs curving down
-      // together, like the ribs of an open umbrella/dome.
+      // Section 3: three-stage profile inspired by +TORUS_OUT's
+      // trunk-then-arc structure, extended with an explicit "arc up and
+      // out" stage so the rays genuinely keep RISING while beginning to
+      // widen (not just fanning out flat) before curving over and
+      // cascading down -- similar to how the TORUS_OUT streamlines swoop
+      // up and over before descending.
+      //   Stage A (trunk, p<0.32):   bundled together, rising straight up
+      //                              out of the crown.
+      //   Stage B (arc up, 0.32-0.62): radius starts growing WHILE height
+      //                              keeps increasing further -- the rays
+      //                              visibly separate as they arc up and
+      //                              outward, past the crown's height.
+      //   Stage C (cascade, 0.62-1): past the peak, radius keeps growing
+      //                              while height now descends, curving
+      //                              the rays down toward the Bubble's
+      //                              inner surface.
+      // All three stages are built from the exact same (r,z) profile for
+      // every ray -- only the fixed azimuth (seed.umbrellaAzimuth) differs
+      // between the 12 rays, so they form evenly spaced ribs of one shared
+      // umbrella-shaped sweep. Peak distance from center stays well inside
+      // BUBBLE_R*0.985, so the rays never touch/exceed the Bubble wall.
       const p = (s-S2)/(1-S2);
-      const maxR = BUBBLE_R*0.9;              // widest reach of the dome -- kept comfortably inside the Bubble wall so the flare has visible room to spread out
-      const TOP_Z = TIP_Z + (maxR-TIP_Z)*0.38; // trunk apex sits well below the Bubble wall -- gives the flare a wide, gradual dome instead of a tight point-burst
-      const RISE_FRAC = 0.4;                   // fraction of this phase spent rising straight up as one bundle (mirrors evaluateHornTorusPoint's tau<0.35 trunk)
+      const RISE_FRAC = 0.32;
+      const ARC_FRAC = 0.62;
+      const TRUNK_TOP_Z = TIP_Z + 0.35;   // trunk rises a bit above the crown
+      const PEAK_R = 0.55, PEAK_Z = TIP_Z + 0.85; // arc's peak: higher AND already widening outward
+      const END_R = BUBBLE_R*0.885, END_Z = TIP_Z - 0.68; // cascade's end point, close to the Bubble's inner surface
       let r;
       if (p < RISE_FRAC){
-        // Trunk: still bundled together (negligible radius), rising
-        // straight up out of the crown, continuing higher than Z=1.
         const rp = smooth(p/RISE_FRAC);
         r = 0.015;
-        z = TIP_Z + rp*(TOP_Z - TIP_Z);
+        z = TIP_Z + rp*(TRUNK_TOP_Z - TIP_Z);
+      } else if (p < ARC_FRAC){
+        const sp = smooth((p-RISE_FRAC)/(ARC_FRAC-RISE_FRAC));
+        r = 0.015 + sp*(PEAK_R - 0.015);
+        z = TRUNK_TOP_Z + sp*(PEAK_Z - TRUNK_TOP_Z); // keeps RISING while widening -- the "arc up and out" the user asked for
       } else {
-        // Quarter-ellipse arc: r grows smoothly from ~0 to maxR while z
-        // eases down from TOP_Z to 0 -- one continuous curve, no seam --
-        // this is where the 12 rays gradually separate and cascade down
-        // near the Bubble's inner surface, tracing a wide, smooth dome.
-        const ap = smooth((p-RISE_FRAC)/(1-RISE_FRAC));
-        const beta = (Math.PI/2)*ap; // sweeps from 0 (top, r=0) to PI/2 (equator, r=maxR)
-        r = maxR*Math.sin(beta);
-        z = TOP_Z*Math.cos(beta);
+        const sp = smooth((p-ARC_FRAC)/(1-ARC_FRAC));
+        r = PEAK_R + sp*(END_R - PEAK_R);
+        z = PEAK_Z + sp*(END_Z - PEAK_Z); // now curves over and cascades down toward the Bubble's inner surface
       }
       const finalAngle = seed.umbrellaAzimuth; // fixed, evenly-spaced heading for this ray -- never changes during the burst
       x = r*Math.cos(finalAngle);
