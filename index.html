@@ -1297,27 +1297,21 @@ function buildLotusSequenceAnimation(root){
   // visibility (no per-frame geometry rebuilds needed).
   const STEM_SEGMENTS = 14;
   const stemMat = new THREE.MeshStandardMaterial({ color:0x2e7d32, roughness:0.6, metalness:0.05 });
-  // Twists each stem's growth path into a helical spiral around its own
-  // direct YA -> flower axis, with the spiral amplitude fading to zero at
-  // both endpoints so the stem still starts exactly at YA and still lands
-  // exactly at the flower's base (approaching it Z-up), while curling
-  // around itself like a climbing vine along the way.
-  const STEM_SPIRAL_TURNS = 2.25;
-  const STEM_SPIRAL_RADIUS = 0.16;
-  function applySpiralTwist(points, axisStart, axisEnd){
-    const axis = new THREE.Vector3().subVectors(axisEnd, axisStart).normalize();
-    let perp1 = new THREE.Vector3().crossVectors(axis, new THREE.Vector3(0, 0, 1));
-    if (perp1.lengthSq() < 1e-6) perp1 = new THREE.Vector3().crossVectors(axis, new THREE.Vector3(1, 0, 0));
-    perp1.normalize();
-    const perp2 = new THREE.Vector3().crossVectors(axis, perp1).normalize();
+  // Winds each stem's growth path spirally around the scene's central
+  // vertical (Z) axis (like a vine circling the Buddha's own centerline as
+  // it climbs), rather than twisting around its own local YA -> flower
+  // axis. Implemented as a pure rotation of each point's (x, y) around the
+  // Z axis, with the rotation angle fading to zero at both endpoints —
+  // this keeps the stem's start (YA, which already sits on the Z axis) and
+  // end (the flower's exact position) unchanged, while the middle of the
+  // path sweeps around the center.
+  const STEM_SPIRAL_TURNS = 0.9;
+  function applySpiralAroundCentralAxis(points){
     return points.map((p, i) => {
       const tt = i / (points.length - 1);
-      const amp = STEM_SPIRAL_RADIUS * Math.sin(Math.PI * tt); // 0 at both ends, bulges through the middle
-      const angle = tt * STEM_SPIRAL_TURNS * Math.PI * 2;
-      const offset = new THREE.Vector3()
-        .addScaledVector(perp1, Math.cos(angle) * amp)
-        .addScaledVector(perp2, Math.sin(angle) * amp);
-      return p.clone().add(offset);
+      const angle = STEM_SPIRAL_TURNS * Math.PI * 2 * Math.sin(Math.PI * tt); // 0 at both ends, peaks mid-path
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      return new THREE.Vector3(p.x * cos - p.y * sin, p.x * sin + p.y * cos, p.z);
     });
   }
   const stems = PETAL_SPECS.map(spec => {
@@ -1335,7 +1329,7 @@ function buildLotusSequenceAnimation(root){
       preTarget,
       spec.target.clone()
     ]);
-    const points = applySpiralTwist(curve.getPoints(STEM_SEGMENTS), YA_POS, spec.target);
+    const points = applySpiralAroundCentralAxis(curve.getPoints(STEM_SEGMENTS));
     const segMeshes = [];
     for (let i=0; i<STEM_SEGMENTS; i++){
       const a = points[i], b = points[i+1];
