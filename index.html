@@ -1524,7 +1524,7 @@ function buildHienLuanAnimation(root, colorHex){
   const CONCH_TOTAL_TURNS = 5;      // 1 widening loop + 4 narrowing loops
   const CONCH_WIDEN_FRACTION = 0.2; // 1 of the 5 total loops is the widening phase
   const CONCH_MAX_R = 0.6;          // widens out to roughly the Buddha's body diameter
-  const DOME_MAX_THETA = 1.3;       // polar angle (radians) the dome burst sweeps down to (~74 deg from the pole)
+  const DOME_MAX_THETA = 2.0;       // polar angle (radians) the dome burst sweeps down to -- widened so it fills much more of the Bubble's interior
 
   const smooth = (x) => x*x*(3-2*x);
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
@@ -1574,7 +1574,7 @@ function buildHienLuanAnimation(root, colorHex){
       // polar angle sweeps down, tracing one smooth, continuous dome.
       const p = (s-S2)/(1-S2);
       const ease = smooth(p);
-      const r = TIP_Z + ease*(BUBBLE_R*0.94 - TIP_Z);
+      const r = TIP_Z + ease*(BUBBLE_R*0.985 - TIP_Z); // reach almost all the way to the Bubble's inner wall -- but never touch/exceed it
       const theta = ease*DOME_MAX_THETA;
       const angle = seed.umbrellaAzimuth + ease*seed.umbrellaSwirl;
       x = r*Math.sin(theta)*Math.cos(angle);
