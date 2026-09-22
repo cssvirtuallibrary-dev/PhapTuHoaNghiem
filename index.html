@@ -841,18 +841,35 @@ function buildBuddhaStatue(sharedMat){
       so nothing entered in the sheet is ever silently ignored.
    ========================================================================= */
 
-// +EGO / +BUBBLE — clear crystal Bubble of Ego sweeping shut around the Buddha (radius 2.1)
-function buildEgoAnimation(root){
+// +EGO / +BUBBLE — clear crystal Bubble of Ego around the Buddha (radius 2.1).
+// Standalone use (no opts) breathes open/close continuously, as before.
+// Pass { holdOpen: true } (used by +LOTUS_SEQUENCE) to have it form ONCE —
+// smoothly sweeping shut from 0 to fully open over EGO_FORM_DURATION_SECONDS
+// — and then remain fully open and static for the rest of the sequence,
+// only disappearing when the card/animation is reset (disposed).
+const EGO_FORM_DURATION_SECONDS = 1.2;
+function buildEgoAnimation(root, opts){
+  const holdOpen = !!(opts && opts.holdOpen);
   const mat = new THREE.MeshPhysicalMaterial({ color:0xffffff, roughness:0.05, metalness:0.1, transmission:0.98, ior:1.52, thickness:0.3, transparent:true, opacity:1.0, side:THREE.DoubleSide, depthWrite:false });
   let geo = createOuterBubbleGeometry(0.001, 40, 28);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.renderOrder = 3;
   root.add(mesh);
+  let fullyFormed = false;
   return {
     extent: 2.1,
     update(t){
-      const u = (Math.sin(t*0.5)*0.5+0.5); // continuous open/close breathing sweep
-      const phi = Math.max(0.01, u*Math.PI*2);
+      if (holdOpen && fullyFormed) return; // already fully open & static — stop rebuilding geometry every frame
+      let phi;
+      if (holdOpen) {
+        const p = Math.min(1, t / EGO_FORM_DURATION_SECONDS);
+        const eased = p*p*(3-2*p); // smoothstep ease
+        phi = Math.max(0.01, eased * Math.PI * 2);
+        if (p >= 1) fullyFormed = true;
+      } else {
+        const u = (Math.sin(t*0.5)*0.5+0.5); // continuous open/close breathing sweep
+        phi = Math.max(0.01, u*Math.PI*2);
+      }
       mesh.geometry.dispose();
       mesh.geometry = createOuterBubbleGeometry(phi, 40, 28);
     },
@@ -1213,7 +1230,7 @@ function buildLotusSequenceAnimation(root){
   const YA_POS = new THREE.Vector3(0, 0, -0.5);
   const SA_POS = new THREE.Vector3(0, 0, 1.0);
   const HEART_POS = new THREE.Vector3(0, 0, 0.2);
-  const VA_POS = new THREE.Vector3(0, 0, 0.75);
+  const VA_POS = new THREE.Vector3(0, 0, 0.35);
 
   const PETAL_SPECS = [
     { color:'#3b82f6', target:new THREE.Vector3(-1, 0, 0) }, // BLUE
@@ -1304,7 +1321,7 @@ function buildLotusSequenceAnimation(root){
   // this keeps the stem's start (YA, which already sits on the Z axis) and
   // end (the flower's exact position) unchanged, while the middle of the
   // path sweeps around the center.
-  const STEM_SPIRAL_TURNS = 0.25; // ~1/4 turn corkscrew twist at the peak of the smooth sine sweep
+  const STEM_SPIRAL_TURNS = 0.05; // ~1/20 turn corkscrew twist at the peak of the smooth sine sweep
   function applySpiralAroundCentralAxis(points){
     return points.map((p, i) => {
       const tt = i / (points.length - 1);
@@ -1555,28 +1572,31 @@ function initCardViz(container, fields, triggers, statusEl){
     };
   }
 
-  const LOTUS_SEQUENCE_STEP_DELAY_MS = 1000; // 1 second between each orchestrated step
+  const LOTUS_SEQUENCE_STEP_DELAY_MS = 1000; // delay after the Buddha loads, before the Bubble of Ego begins forming
 
   if (triggers.includes('LOTUS_SEQUENCE')) {
     // Step 1: wait for the Buddha model to finish loading (proceed anyway,
     // with the procedural placeholder, if it ever fails to load).
     loadSharedBuddhaModel().catch(() => {}).then(() => {
       setTimeout(() => {
-        // Step 2: bring in the Bubble of Ego, 1s after the Buddha is ready.
+        // Step 2: build the Bubble of Ego ONCE, with holdOpen so it forms
+        // smoothly to fully open and then stays open/static for the rest of
+        // the sequence — it is never rebuilt/closed again until the whole
+        // card is reset (cleanup/dispose).
         const egoOffset = (performance.now() - clockStart) / 1000;
-        const egoAnim = buildEgoAnimation(rootGroup);
+        const egoAnim = buildEgoAnimation(rootGroup, { holdOpen: true });
         activeAnims.push(wrapAnimWithLocalStart(egoAnim, egoOffset));
         if (egoAnim.extent) activeExtents.push(egoAnim.extent);
 
+        // Step 3: wait until the Bubble of Ego is FULLY FORMED before
+        // building and adding the rest of the Lotus sequence (YA -> water
+        // drop -> SA -> 4-lotus growth -> spiral merge -> VA).
         setTimeout(() => {
-          // Step 3: 1s after the Bubble of Ego appears, start the rest of
-          // the Lotus sequence (YA -> water drop -> SA -> 4-lotus growth ->
-          // spiral merge -> VA).
           const lotusOffset = (performance.now() - clockStart) / 1000;
           const lotusAnim = buildLotusSequenceAnimation(rootGroup, fields.viz.colorHex);
           activeAnims.push(wrapAnimWithLocalStart(lotusAnim, lotusOffset));
           if (lotusAnim.extent) activeExtents.push(lotusAnim.extent);
-        }, LOTUS_SEQUENCE_STEP_DELAY_MS);
+        }, EGO_FORM_DURATION_SECONDS * 1000);
       }, LOTUS_SEQUENCE_STEP_DELAY_MS);
     });
   }
