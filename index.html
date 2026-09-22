@@ -1495,31 +1495,36 @@ function buildHienLuanAnimation(root, colorHex){
   // NOW per request -- left in place (inert) so it can be re-enabled later
   // without rebuilding this whole sequence.
   const STEP8_ENABLED = false;
-  const glowMat = { opacity: 0 }; // inert stand-in so update() below stays simple
 
   // ---- 3-section trajectory:
-  //   Section 1 (brown)  -- wide, smooth converging arcs sweeping in from
-  //                         the lower Bubble toward the SCA Siddham at the
-  //                         origin (few gentle turns, like the reference
-  //                         image's broad converging root/ray lines -- NOT
-  //                         a tight multi-turn vortex).
-  //   Section 2 (blue)   -- inverted-conch-shell spiral through the core,
-  //                         hugging close to the Buddha's body, showing
-  //                         only ~4-5 clean loops from Z=0 up to the crown.
-  //   Section 3 (light)  -- energy bursts from the crown and sweeps out
-  //                         across the upper Bubble in ONE continuous,
-  //                         smooth spherical-spiral dome (no kink between
-  //                         "launch" and "cascade" -- radius and polar
-  //                         angle both ease outward together).
+  //   Section 1 (brown)  -- a WIDE, LOW sweep: broad arcs, starting deep
+  //                         below the Buddha and out near the Bubble's
+  //                         inner wall, sweeping in less than one full turn
+  //                         (like broad converging rays, not a tight
+  //                         vortex) as they funnel down toward a single
+  //                         point at Z=0 (the mouth of the core spiral).
+  //   Section 2 (blue)   -- exactly ONE visible strand: it starts at that
+  //                         same converge point (r=0, Z=0), widens out to
+  //                         the Buddha's body diameter over its FIRST loop,
+  //                         then slowly narrows again, loop by loop, over
+  //                         the next 4 loops, arriving at a point exactly
+  //                         at the crown (Z=1). All particles/streamlines
+  //                         share this identical single-line path here, so
+  //                         only one coil is ever visible.
+  //   Section 3 (light)  -- bursts outward starting exactly AT the crown
+  //                         (Z=1, r=0) -- not at Z=0 -- then fans out into
+  //                         12 distinct rays sweeping down across the
+  //                         upper Bubble in one smooth dome.
   const BROWN_COLOR = new THREE.Color(0x9a6a34);
   const BLUE_COLOR  = new THREE.Color(0x29b6f6);
   const LIGHT_COLOR = new THREE.Color(colorHex || '#ffe9a8');
-  const S1 = 0.36, S2 = 0.70; // phase boundaries: brown converge | blue conch spiral | light dome burst
+  const S1 = 0.32, S2 = 0.68; // phase boundaries: brown converge | blue conch spiral | light dome burst
   const BLEND_BAND = 0.05;    // soft crossfade width at each phase boundary
-  const CONVERGE_TURNS = 1.1; // wide, gentle converging arcs -- not a tight vortex
-  const CONCH_TURNS = 4.5;    // "about 4-5 loops", exactly as requested
-  const CONCH_MAX_R = 0.55;   // hugs close to the Buddha's body -- not too wide
-  const DOME_MAX_THETA = 1.3; // polar angle (radians) the dome burst sweeps down to (~74 deg from the pole)
+  const CONVERGE_TURNS = 0.6; // wide, low sweep -- well under one full turn
+  const CONCH_TOTAL_TURNS = 5;      // 1 widening loop + 4 narrowing loops
+  const CONCH_WIDEN_FRACTION = 0.2; // 1 of the 5 total loops is the widening phase
+  const CONCH_MAX_R = 0.6;          // widens out to roughly the Buddha's body diameter
+  const DOME_MAX_THETA = 1.3;       // polar angle (radians) the dome burst sweeps down to (~74 deg from the pole)
 
   const smooth = (x) => x*x*(3-2*x);
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
@@ -1535,32 +1540,41 @@ function buildHienLuanAnimation(root, colorHex){
   function energyPointAt(s, seed, outVec){
     let x, y, z;
     if (s < S1){
-      // Section 1: wide, smooth arcs converging from the lower Bubble
-      // (below Z=0, but always within the Bubble of Ego boundary) inward
-      // and upward toward the SCA Siddham at the origin -- a broad sweep
-      // with only a little more than one full turn, not a tight vortex.
+      // Section 1: a wide, low sweep -- starting deep below the Buddha and
+      // out near the Bubble's inner wall, sweeping through less than one
+      // full turn as it funnels down to a single point at Z=0.
       const p = s/S1;
       const ease = smooth(p);
       z = seed.startZ * (1-ease);
-      const r = seed.startR * (1-ease*ease) + 0.01*ease; // slow shrink at first, wide sweep, converges at the end
+      const r = seed.startR * (1-ease*ease); // wide sweep, only pinches in sharply near the very end
       const angle = seed.startAngle + ease*CONVERGE_TURNS*Math.PI*2;
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else if (s < S2){
-      // Section 2: blue inverted-conch-shell spiral -- ~4.5 tightening
-      // loops, hugging close to the Buddha's body, from Z=0 up to Z=1.
+      // Section 2: ONE shared spiral strand (angle/radius here intentionally
+      // ignore the per-seed azimuth, so every streamline/particle overlaps
+      // into a single visible coil) -- widens to the Buddha's body diameter
+      // across the first loop, then narrows loop by loop across the next 4
+      // loops, ending exactly at the crown point (Z=1, r=0).
       const p = (s-S1)/(S2-S1);
       z = p*TIP_Z;
-      const r = CONCH_MAX_R*Math.pow(1-p, 1.3) + 0.01;
-      const angle = seed.startAngle + p*CONCH_TURNS*Math.PI*2;
+      const angle = p*CONCH_TOTAL_TURNS*Math.PI*2; // shared reference angle -- no seed-specific offset
+      let r;
+      if (p < CONCH_WIDEN_FRACTION){
+        const w = p/CONCH_WIDEN_FRACTION;
+        r = CONCH_MAX_R*smooth(w);
+      } else {
+        const w = (p-CONCH_WIDEN_FRACTION)/(1-CONCH_WIDEN_FRACTION);
+        r = CONCH_MAX_R*(1-smooth(w));
+      }
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
-      // Section 3: light energy bursts from the crown and sweeps outward
-      // across the upper Bubble in ONE continuous, smooth spherical spiral
-      // -- radius and polar angle ease outward together (no seam/kink),
-      // producing a smooth dome shape rather than two separate motions.
+      // Section 3: bursts outward starting exactly AT the crown (r=TIP_Z,
+      // polar angle 0 -> Cartesian (0,0,TIP_Z)) -- not at Z=0 -- then fans
+      // out into each seed's own direction as the radius grows and the
+      // polar angle sweeps down, tracing one smooth, continuous dome.
       const p = (s-S2)/(1-S2);
       const ease = smooth(p);
-      const r = BUBBLE_R*0.94*Math.sin(ease*Math.PI/2);
+      const r = TIP_Z + ease*(BUBBLE_R*0.94 - TIP_Z);
       const theta = ease*DOME_MAX_THETA;
       const angle = seed.umbrellaAzimuth + ease*seed.umbrellaSwirl;
       x = r*Math.sin(theta)*Math.cos(angle);
@@ -1572,16 +1586,17 @@ function buildHienLuanAnimation(root, colorHex){
 
   // ---- Streamlines (static full paths, colored per-section) -- the
   // "TORUS" visual language: thin, glowing, additively-blended lines
-  // tracing the whole flow. Kept to a modest count so the ~4-5 blue loops
-  // read cleanly instead of looking like many overlapping coils.
-  const NUM_STREAMLINES = 6;
-  const STREAM_SEGMENTS = 110;
+  // tracing the whole flow. 12 lines total (up from 6) so Section 1's wide
+  // converging sweep and Section 3's crown burst both read as a full fan of
+  // rays, while Section 2 collapses all of them onto one shared coil.
+  const NUM_STREAMLINES = 12;
+  const STREAM_SEGMENTS = 120;
   const streamSeeds = [];
   for (let i=0;i<NUM_STREAMLINES;i++){
     const angle = (i/NUM_STREAMLINES) * Math.PI*2;
-    const startZ = -0.35 - (i % 3) * 0.5; // vary starting depth a little between lines
-    const startR = Math.sqrt(Math.max(0, BUBBLE_R*BUBBLE_R - startZ*startZ)) * 0.6;
-    streamSeeds.push({ startZ, startAngle: angle, startR, umbrellaAzimuth: angle, umbrellaSwirl: 0.5 });
+    const startZ = -0.3 - (i % 4) * 0.42; // deep, low starting heights (down to about Z=-1.56)
+    const startR = Math.sqrt(Math.max(0, BUBBLE_R*BUBBLE_R - startZ*startZ)) * 0.88; // wide -- close to the Bubble's inner wall
+    streamSeeds.push({ startZ, startAngle: angle, startR, umbrellaAzimuth: angle, umbrellaSwirl: 0.45 });
   }
   const streamPositions = new Float32Array(NUM_STREAMLINES*STREAM_SEGMENTS*3);
   const streamColors = new Float32Array(NUM_STREAMLINES*STREAM_SEGMENTS*3);
@@ -1618,7 +1633,7 @@ function buildHienLuanAnimation(root, colorHex){
     ctx.fillStyle=g; ctx.fillRect(0,0,64,64);
     return new THREE.CanvasTexture(c);
   }
-  const PARTICLES_PER_STREAMLINE = 4;
+  const PARTICLES_PER_STREAMLINE = 3;
   const totalParticles = NUM_STREAMLINES * PARTICLES_PER_STREAMLINE;
   const particlePositions = new Float32Array(totalParticles*3);
   const particleColors = new Float32Array(totalParticles*3);
