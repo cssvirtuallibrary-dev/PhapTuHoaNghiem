@@ -1108,13 +1108,13 @@ function makeSiddhamSprite(key, worldHeight){
 // a consistent world-space diameter, reoriented so it "faces" scene +Z) so
 // every flower instance below can share the single BufferGeometry and only
 // needs its own material for color + bloom-opacity/scale.
-const LOTUS_STL_FILENAME = 'Hoa Sen.stl';
+const LOTUS_STL_FILENAME = 'hoa+sen.stl';
 const LOTUS_STL_CANDIDATES = [ LOTUS_STL_FILENAME, encodeURI(LOTUS_STL_FILENAME) ];
 const LOTUS_TARGET_DIAMETER = 0.55; // world units — comparable footprint to the previous procedural flower
-// If the loaded flower looks sideways or upside-down, adjust this pitch —
-// most STL exports are authored Y-up, while this scene is Z-up, so the
-// default here rotates the model +90° about X to stand it upright.
-const LOTUS_STL_ROTATION_X = -Math.PI/2;
+// hoa+sen.stl is already authored Z-up (matching this scene's up axis), so
+// no corrective pitch is applied. If a future model swap ever comes in
+// Y-up instead, set this back to -Math.PI/2 to stand it upright again.
+const LOTUS_STL_ROTATION_X = 0;
 const sharedSTLLoader = ('THREE' in window && THREE.STLLoader) ? new THREE.STLLoader() : null;
 let lotusGeometryLoadPromise = null;
 function loadSharedLotusGeometry(){
@@ -1164,19 +1164,31 @@ function buildLotusFlowerGroup(colors){
   const group = new THREE.Group();
   const instances = colors.map((colorHex, i) => {
     const { mesh, mat } = createLotusFlowerMesh(colorHex);
-    mesh.rotation.y = (i / colors.length) * Math.PI * 2;
+    mesh.rotation.z = (i / colors.length) * Math.PI * 2; // yaw about the scene's vertical (Z) axis
     const layerScale = 1 - i * 0.045;
     mesh.scale.setScalar(layerScale);
-    mesh.position.y = i * 0.004;
+    mesh.position.z = i * 0.004; // tiny vertical stagger to avoid z-fighting between stacked layers
     group.add(mesh);
     return { mat };
   });
+
+  // A multi-color bloom (heart-center merge) gets a small golden seed-pod
+  // at its center, like a real lotus, so the layered tints read as one
+  // naturally-colored flower rather than flat stacked slices.
+  let stamenMat = null, stamen = null;
+  if (colors.length > 1){
+    stamenMat = new THREE.MeshPhysicalMaterial({ color:0xffc107, emissive:0xff9800, emissiveIntensity:0.5, roughness:0.35, metalness:0.4, transparent:true, opacity:0.95 });
+    stamen = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 16), stamenMat);
+    stamen.position.z = 0.05;
+    group.add(stamen);
+  }
 
   function setBloom(progress){
     const p = Math.max(0, Math.min(1, progress));
     const scale = 0.08 + 0.92*p;
     group.scale.setScalar(scale);
     instances.forEach(({ mat }) => { mat.opacity = 0.25 + 0.7*p; });
+    if (stamenMat) stamenMat.opacity = 0.2 + 0.75*p;
   }
   setBloom(0);
   return { group, setBloom };
@@ -1191,9 +1203,36 @@ function buildLotusSequenceAnimation(root){
   const PETAL_SPECS = [
     { color:'#3b82f6', target:new THREE.Vector3(-1, 0, 0) }, // BLUE
     { color:'#e53935', target:new THREE.Vector3(0, -1, 0) }, // RED
-    { color:'#8e24aa', target:new THREE.Vector3(1, 0, 0) },  // PURPLE
+    { color:'#4a148c', target:new THREE.Vector3(1, 0, 0) },  // PURPLE (deep true purple, was reading orange)
     { color:'#f5f5f5', target:new THREE.Vector3(0, 1, 0) }   // WHITE
   ];
+
+  // Water droplet travel endpoints (PURPLE position -> BLUE position),
+  // independent of the YA/SA glyph placements.
+  const DROP_START = new THREE.Vector3(1, 0, 0);
+  const DROP_END   = new THREE.Vector3(-1, 0, 0);
+
+  // A wider, naturally-blended 8-stop palette for the merged heart-center
+  // bloom: interpolates through transitional hues (indigo, magenta/rose,
+  // pale lavender) between the 4 base colors so the flower reads as one
+  // smoothly multi-colored bloom instead of 4 flat quadrants.
+  function buildNaturalMergedPalette(){
+    const BLUE = new THREE.Color(PETAL_SPECS[0].color);
+    const RED = new THREE.Color(PETAL_SPECS[1].color);
+    const PURPLE = new THREE.Color(PETAL_SPECS[2].color);
+    const WHITE = new THREE.Color(PETAL_SPECS[3].color);
+    const mid = (a, b) => new THREE.Color().lerpColors(a, b, 0.5);
+    return [
+      BLUE,
+      mid(BLUE, PURPLE),
+      PURPLE,
+      mid(PURPLE, RED),
+      RED,
+      mid(RED, WHITE),
+      WHITE,
+      mid(WHITE, BLUE)
+    ].map(c => '#' + c.getHexString());
+  }
 
   const group = new THREE.Group();
   root.add(group);
@@ -1216,11 +1255,15 @@ function buildLotusSequenceAnimation(root){
   const STEM_SEGMENTS = 14;
   const stemMat = new THREE.MeshStandardMaterial({ color:0x2e7d32, roughness:0.6, metalness:0.05 });
   const stems = PETAL_SPECS.map(spec => {
+    // Direct growth path from YA straight out to this flower's position —
+    // a gentle arc toward the target itself, rather than first rising
+    // through the central Z column (heart-center height) before bending
+    // outward.
+    const mid = new THREE.Vector3().lerpVectors(YA_POS, spec.target, 0.5);
+    mid.z += 0.18; // slight natural upward arch along the direct path
     const curve = new THREE.CatmullRomCurve3([
       YA_POS.clone(),
-      new THREE.Vector3(0, 0, -0.1),
-      new THREE.Vector3(0, 0, 0.15),
-      new THREE.Vector3(spec.target.x*0.55, spec.target.y*0.55, 0.05),
+      mid,
       spec.target.clone()
     ]);
     const points = curve.getPoints(STEM_SEGMENTS);
@@ -1248,9 +1291,10 @@ function buildLotusSequenceAnimation(root){
     return { ...f, homePos: spec.target.clone() };
   });
 
-  // Merged 4-color lotus (4 stacked Hoa Sen.stl copies, one per color) that
-  // blooms at the heart center once the 4 flowers spiral inward and combine.
-  const mergedColors = PETAL_SPECS.map(spec => spec.color);
+  // Merged multi-color lotus (8 stacked Hoa Sen.stl copies with a naturally
+  // blended palette) that blooms at the heart center once the 4 flowers
+  // spiral inward and combine.
+  const mergedColors = buildNaturalMergedPalette();
   const mergedFlower = buildLotusFlowerGroup(mergedColors);
   mergedFlower.group.position.copy(HEART_POS);
   mergedFlower.group.scale.setScalar(0.001);
@@ -1283,7 +1327,7 @@ function buildLotusSequenceAnimation(root){
     dropMat.opacity = dropActive ? (dp < 0.92 ? 0.95 : lerp(0.95, 0, (dp-0.92)/0.08)) : 0;
     dropLight.intensity = dropActive ? 1.1 * (1 - Math.abs(dp-0.5)*0.6) : 0;
     if (dropActive){
-      dropMesh.position.lerpVectors(YA_POS, SA_POS, smooth(dp));
+      dropMesh.position.lerpVectors(DROP_START, DROP_END, smooth(dp));
       dropLight.position.copy(dropMesh.position);
     }
 
