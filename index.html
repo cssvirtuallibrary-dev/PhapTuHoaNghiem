@@ -1794,7 +1794,7 @@ function buildHienLuanAnimation(root, colorHex){
   // timeline -- Section 1 pulls energy toward the center first, THEN (after
   // a pause) Section 2 animates, THEN (after another pause) Section 3
   // bursts -- instead of all 3 sections appearing simultaneously.
-  const NUM_STREAMLINES = 12;
+  const NUM_STREAMLINES = 9; // reduced from 12 -- fewer rays across all 3 sections for a cleaner look
   const STREAM_SEGMENTS = 480; // high resolution so the Section 2 coil (5 tight loops) renders as a smooth curve instead of visibly faceted/broken straight segments
   const streamSeeds = [];
   for (let i=0;i<NUM_STREAMLINES;i++){
