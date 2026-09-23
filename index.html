@@ -800,7 +800,7 @@ function makeCrystalMaterial(){
 // YA/SA/VA Siddham glyphs and the traveling water drop of +LOTUS_SEQUENCE
 // stay clearly visible through the body, regardless of whatever opacity the
 // source .glb materials were originally authored with.
-const BUDDHA_BODY_OPACITY = 0.28;
+const BUDDHA_BODY_OPACITY = 0.42;
 function applyBuddhaTransparency(object3D){
   object3D.traverse((obj) => {
     if (!obj.isMesh || !obj.material) return;
@@ -876,6 +876,16 @@ function buildEgoAnimation(root, opts){
       }
       mesh.geometry.dispose();
       mesh.geometry = createOuterBubbleGeometry(phi, 40, 28);
+    },
+    // Explicitly closes the Bubble back down to its near-zero starting
+    // sliver and clears the "fullyFormed" latch -- used by looping
+    // sequences (e.g. +EGO_SEQUENCE) so the Bubble can fully re-form again
+    // from scratch on every loop, instead of permanently staying open
+    // forever after its very first formation.
+    reset(){
+      fullyFormed = false;
+      mesh.geometry.dispose();
+      mesh.geometry = createOuterBubbleGeometry(0.001, 40, 28);
     },
     dispose(){ root.remove(mesh); mesh.geometry.dispose(); mat.dispose(); }
   };
@@ -1157,8 +1167,12 @@ function loadSiddhamFileTexture(key){
 // finishes loading (starting as a neutral square placeholder until then).
 // Otherwise, falls back to the legacy embedded-base64 SIDDHAM_TEXTURES path.
 function makeSiddhamSprite(key, worldHeight){
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, opacity:0, depthWrite:false }));
-  sprite.renderOrder = 6;
+  // depthTest:false + a high renderOrder guarantee every Siddham glyph
+  // (SCA, BA, DA, YA, SA, VA) always draws on top of whatever it's
+  // positioned inside/behind -- the Buddha body, the Bubble of Ego, or a
+  // colored marker sphere -- none of which should ever be able to hide it.
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, opacity:0, depthWrite:false, depthTest:false }));
+  sprite.renderOrder = 10;
   if (SIDDHAM_FILE_CANDIDATES[key]) {
     sprite.scale.set(worldHeight, worldHeight, 1); // neutral placeholder until the real aspect ratio is known
     loadSiddhamFileTexture(key).then(({ tex, aspect }) => {
@@ -1632,9 +1646,9 @@ function buildHienLuanAnimation(root, colorHex){
   // Brightness multipliers applied on top of each section's base hue so all
   // three sections -- especially Section 3's near-white burst, which was
   // washing out against the bright Bubble -- stay clearly, vividly visible.
-  const BRIGHTNESS_SECTION1 = 1.6;
-  const BRIGHTNESS_SECTION2 = 1.5;
-  const BRIGHTNESS_SECTION3 = 1.8;
+  const BRIGHTNESS_SECTION1 = 3.4;
+  const BRIGHTNESS_SECTION2 = 2.6;
+  const BRIGHTNESS_SECTION3 = 2.1;
   function brightenColor(c, k){ c.r = Math.min(1, c.r*k); c.g = Math.min(1, c.g*k); c.b = Math.min(1, c.b*k); }
   function phaseColorAt(s, outColor){
     if (s < S1 - BLEND_BAND) { outColor.copy(BROWN_COLOR); brightenColor(outColor, BRIGHTNESS_SECTION1); return; }
@@ -1777,7 +1791,11 @@ function buildHienLuanAnimation(root, colorHex){
   // is unsupported cross-browser in WebGL, so this duplication is the
   // reliable way to make the rays read as wider, more visible bands).
   const streamlineHaloMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
-  const haloOffsets = [ new THREE.Vector3(0.02,0.02,0), new THREE.Vector3(-0.02,-0.02,0), new THREE.Vector3(0,0.02,0.02) ];
+  const haloOffsets = [
+    new THREE.Vector3(0.028,0.028,0), new THREE.Vector3(-0.028,-0.028,0),
+    new THREE.Vector3(0,0.028,0.028), new THREE.Vector3(0,-0.028,-0.028),
+    new THREE.Vector3(0.028,0,-0.028)
+  ];
   for (let si=0; si<NUM_STREAMLINES; si++){
     const posSlice = streamPositions.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
     const colSlice = streamColors.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
@@ -1808,14 +1826,14 @@ function buildHienLuanAnimation(root, colorHex){
     ctx.fillStyle=g; ctx.fillRect(0,0,64,64);
     return new THREE.CanvasTexture(c);
   }
-  const PARTICLES_PER_STREAMLINE = 3;
+  const PARTICLES_PER_STREAMLINE = 6; // doubled -- denser flow of light along every ray for clearer visibility
   const totalParticles = NUM_STREAMLINES * PARTICLES_PER_STREAMLINE;
   const particlePositions = new Float32Array(totalParticles*3);
   const particleColors = new Float32Array(totalParticles*3);
   const particleGeo = new THREE.BufferGeometry();
   particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
   particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
-  const particleMat = new THREE.PointsMaterial({ size:0.16, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true });
+  const particleMat = new THREE.PointsMaterial({ size:0.22, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true });
   const particlePoints = new THREE.Points(particleGeo, particleMat);
   group.add(particlePoints);
 
@@ -1850,8 +1868,8 @@ function buildHienLuanAnimation(root, colorHex){
     // Streamlines + flowing particles fade in alongside the energy stream,
     // now brightened significantly for clearer visibility in all 3 sections.
     const streamFade = smooth(clamp01((t - STREAM_START) / 1.0));
-    streamlineMat.opacity = 0.95 * streamFade;
-    streamlineHaloMat.opacity = 0.45 * streamFade;
+    streamlineMat.opacity = 1.0 * streamFade;
+    streamlineHaloMat.opacity = 0.65 * streamFade;
     particleMat.opacity = 1.0 * streamFade;
 
     if (t <= STREAM_START) { return; }
@@ -1964,7 +1982,20 @@ function buildEgoSequenceAnimation(root, colorHex){
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
   const smooth = (x) => x*x*(3-2*x);
 
+  // Tracks which loop iteration we're currently in so the Bubble of Ego can
+  // be explicitly closed back down (egoAnim.reset()) the instant a new loop
+  // begins -- without this, once the Bubble fully opens it latches
+  // "fullyFormed" permanently and would otherwise stay open forever across
+  // every subsequent reset/loop, instead of restarting from the bare Buddha
+  // statue (no Bubble) each time, only re-forming once the 4th glyph
+  // (DA @ 0,0,-2) is revealed again.
+  let lastCycleIndex = -1;
   function update(elapsedRaw){
+    const cycleIndex = Math.floor(elapsedRaw / CYCLE);
+    if (cycleIndex !== lastCycleIndex) {
+      lastCycleIndex = cycleIndex;
+      egoAnim.reset();
+    }
     const t = elapsedRaw % CYCLE;
     markers.forEach((m, i) => {
       const p = smooth(clamp01((t - STEP_START[i]) / FADE_DURATION));
@@ -2036,7 +2067,7 @@ function initCardViz(container, fields, triggers, statusEl){
   // start with no visible re-zooming later.
   const KNOWN_TRIGGER_EXTENTS = {
     LOTUS_SEQUENCE: [2.1, 1.5],       // Bubble of Ego (radius 2.1) + Lotus bloom/merge extent
-    HIEN_LUAN: [2.1, 2.3],            // Bubble of Ego (radius 2.1) + Hien Luan crown-burst dome extent
+    HIEN_LUAN: [2.1],                 // Bubble of Ego (radius 2.1) -- the crown-burst rays stay just inside this same radius, so framing tighter to it (rather than an extra 2.3 margin) keeps the Buddha and the energy rays both large/clear enough to read
     EGO_SEQUENCE: [3.3]               // Bubble of Ego + farthest glyph marker (~-2, 1.5, 2)
   };
 
