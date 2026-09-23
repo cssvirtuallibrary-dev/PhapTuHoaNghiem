@@ -1888,7 +1888,7 @@ function buildHienLuanAnimation(root, colorHex){
 }
 
 /* =========================================================================
-   +EGO_ALL -- Buddha model loads first; then, in sequence, 6 Siddham glyph
+   +EGO_SEQUENCE -- Buddha model loads first; then, in sequence, 6 Siddham glyph
    markers appear and accumulate (each stays visible once revealed):
      1. BA (Nhat Quang / Sunlight)  in an ORANGE sphere @ (0, 2, 0)
      2. DA (Nguyet Quang / Moonlight) in a GREEN sphere @ (0, -2, 0)
@@ -1901,21 +1901,30 @@ function buildHienLuanAnimation(root, colorHex){
    Everything holds for a few seconds once fully revealed, then the whole
    sequence (all 6 markers + the Bubble of Ego) resets and loops.
    ========================================================================= */
-function buildEgoAllMarker(pos, sphereColorHex, glyphKey, glyphWorldHeight){
+function buildEgoSequenceMarker(pos, sphereColorHex, glyphKey, glyphWorldHeight){
   const group = new THREE.Group();
   group.position.copy(pos);
   const color = new THREE.Color(sphereColorHex);
-  const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.55, roughness:0.25, metalness:0.2, transparent:true, opacity:0 });
+  // depthWrite:false -- so this translucent marker sphere never blocks the
+  // glyph sprite sitting at its exact center (see sprite fix below) or
+  // anything else behind it.
+  const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.55, roughness:0.25, metalness:0.2, transparent:true, opacity:0, depthWrite:false });
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 28, 28), mat);
   group.add(mesh);
   const light = new THREE.PointLight(color.getHex(), 0, 1.8);
   group.add(light);
   const sprite = makeSiddhamSprite(glyphKey, glyphWorldHeight);
+  // Force the glyph to always render on top of its marker sphere: without
+  // this, the sprite (positioned exactly at the sphere's center, i.e.
+  // farther from the camera than the sphere's own near-facing surface) was
+  // being depth-test-rejected and never drawn at all.
+  sprite.material.depthTest = false;
+  sprite.renderOrder = 10;
   group.add(sprite);
   return { group, mesh, mat, light, sprite };
 }
 
-function buildEgoAllAnimation(root, colorHex){
+function buildEgoSequenceAnimation(root, colorHex){
   const group = new THREE.Group();
   root.add(group);
 
@@ -1932,7 +1941,7 @@ function buildEgoAllAnimation(root, colorHex){
   ];
 
   const markers = STEPS.map(step => {
-    const m = buildEgoAllMarker(step.pos, step.sphereColor, step.key, 0.22);
+    const m = buildEgoSequenceMarker(step.pos, step.sphereColor, step.key, 0.22);
     group.add(m.group);
     return m;
   });
@@ -1988,7 +1997,7 @@ function buildTriggerAnimation(name, root, colorHex){
     case 'COLUMN_OF_LIGHT': return buildColumnOfLightAnimation(root, colorHex);
     case 'LOTUS_SEQUENCE': return buildLotusSequenceAnimation(root, colorHex);
     case 'HIEN_LUAN': return buildHienLuanAnimation(root, colorHex);
-    case 'EGO_ALL': return buildEgoAllAnimation(root, colorHex);
+    case 'EGO_SEQUENCE': return buildEgoSequenceAnimation(root, colorHex);
     default: return buildGenericPulseAnimation(root, colorHex, name);
   }
 }
@@ -2013,6 +2022,20 @@ function initCardViz(container, fields, triggers, statusEl){
     camera.position.set(d*0.62, d*0.72, d*0.42);
     camera.updateProjectionMatrix();
   }
+  // Some sequences (+LOTUS_SEQUENCE, +HIEN_LUAN, +EGO_SEQUENCE) build extra
+  // geometry ASYNCHRONOUSLY, well after the single positionCamera() call
+  // below normally runs -- so their true spatial extents were never being
+  // accounted for, and the camera stayed zoomed in too tight for their
+  // Bubble of Ego / crown-burst rays / offset glyph markers to fully fit in
+  // view. KNOWN_TRIGGER_EXTENTS lets us pre-register each orchestrated
+  // sequence's final extent up front (their geometry is static/known ahead
+  // of time), so positionCamera() can be computed correctly from the very
+  // start with no visible re-zooming later.
+  const KNOWN_TRIGGER_EXTENTS = {
+    LOTUS_SEQUENCE: [2.1, 1.5],       // Bubble of Ego (radius 2.1) + Lotus bloom/merge extent
+    HIEN_LUAN: [2.1, 2.3],            // Bubble of Ego (radius 2.1) + Hien Luan crown-burst dome extent
+    EGO_SEQUENCE: [3.3]               // Bubble of Ego + farthest glyph marker (~-2, 1.5, 2)
+  };
 
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -2074,11 +2097,21 @@ function initCardViz(container, fields, triggers, statusEl){
   // the Lotus sequence), so it is skipped here and NOT built immediately.
   const activeAnims = [];
   triggers.forEach(trig => {
-    if (trig === 'LOTUS_SEQUENCE' || trig === 'HIEN_LUAN' || trig === 'EGO_ALL') return;
+    if (trig === 'LOTUS_SEQUENCE' || trig === 'HIEN_LUAN' || trig === 'EGO_SEQUENCE') return;
     const anim = buildTriggerAnimation(trig, rootGroup, fields.viz.colorHex);
     if (anim) { activeAnims.push(anim); if (anim.extent) activeExtents.push(anim.extent); }
   });
   if (triggers.length && statusEl) statusEl.textContent = `▶ Hiệu ứng: ${triggers.map(t=>triggerDisplayLabel(t)).join(' ')}`;
+
+  // Pre-register the known final extents of any orchestrated sequence on
+  // this card BEFORE the single positionCamera() call below, so the
+  // camera is framed wide enough from the very first frame to show the
+  // whole animation (Bubble of Ego, crown burst, offset glyph markers,
+  // etc.) without needing to re-zoom mid-sequence.
+  triggers.forEach(trig => {
+    const extents = KNOWN_TRIGGER_EXTENTS[trig];
+    if (extents) activeExtents.push(...extents);
+  });
 
   scene.add(rootGroup);
   positionCamera();
@@ -2123,7 +2156,7 @@ function initCardViz(container, fields, triggers, statusEl){
     });
   }
 
-  if (triggers.includes('EGO_ALL')) {
+  if (triggers.includes('EGO_SEQUENCE')) {
     // Step 1: wait for the Buddha model to finish loading (proceeds with the
     // procedural placeholder if it ever fails to load), then the same
     // 1-second delay used by the other orchestrated sequences.
@@ -2132,10 +2165,10 @@ function initCardViz(container, fields, triggers, statusEl){
         // Step 2: build the whole +EGO_ALL sequence -- it manages its own
         // 6-step glyph reveal AND forms the Bubble of Ego internally (at
         // step 4), so only a single build call is needed here.
-        const egoAllOffset = (performance.now() - clockStart) / 1000;
-        const egoAllAnim = buildEgoAllAnimation(rootGroup, fields.viz.colorHex);
-        activeAnims.push(wrapAnimWithLocalStart(egoAllAnim, egoAllOffset));
-        if (egoAllAnim.extent) activeExtents.push(egoAllAnim.extent);
+        const egoSequenceOffset = (performance.now() - clockStart) / 1000;
+        const egoSequenceAnim = buildEgoSequenceAnimation(rootGroup, fields.viz.colorHex);
+        activeAnims.push(wrapAnimWithLocalStart(egoSequenceAnim, egoSequenceOffset));
+        if (egoSequenceAnim.extent) activeExtents.push(egoSequenceAnim.extent);
       }, LOTUS_SEQUENCE_STEP_DELAY_MS);
     });
   }
