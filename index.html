@@ -1491,10 +1491,54 @@ function buildHienLuanAnimation(root, colorHex){
   scaSprite.material.opacity = 0;
   group.add(scaSprite);
 
-  // ---- Step 8 (upper Bubble brighten / lower Bubble fade) is DISABLED FOR
-  // NOW per request -- left in place (inert) so it can be re-enabled later
-  // without rebuilding this whole sequence.
-  const STEP8_ENABLED = false;
+  // ---- Step 8: starting ~10s in, over 5 seconds the UPPER half of the
+  // (ever-present, holdOpen) Bubble of Ego slowly turns whiter -- like a
+  // light being switched on in a dark room -- while the LOWER half's
+  // darkness fades away, leaving it clearer and more transparent. Both
+  // effects are driven by ONE continuous, seamless full-sphere shell each
+  // (a smooth vertex-color gradient straddling the equator, not two
+  // separate hemisphere meshes), so there is never a hard seam/dark line
+  // at Z=0. After the 5-second transition completes, the whole +HIEN_LUAN
+  // sequence resets (see CYCLE below).
+  const STEP8_ENABLED = true;
+  const stepShellRadius = BUBBLE_R * 0.985;
+  const stepShellGeo = new THREE.SphereGeometry(stepShellRadius, 48, 32);
+  stepShellGeo.rotateX(Math.PI/2); stepShellGeo.rotateZ(-Math.PI/2); // match createOuterBubbleGeometry's orientation
+  const stepVertexCount = stepShellGeo.attributes.position.count;
+  const stepZNorm = new Float32Array(stepVertexCount);
+  for (let i=0;i<stepVertexCount;i++){ stepZNorm[i] = stepShellGeo.attributes.position.getZ(i) / stepShellRadius; }
+  // Smooth, continuous gradient across the equator (soft band so the
+  // transition itself has no visible edge): upperWeight ~1 well above
+  // Z=0, ~0 well below it; lowerWeight is simply its complement.
+  const STEP8_BAND = 0.16;
+  const stepUpperWeight = new Float32Array(stepVertexCount);
+  for (let i=0;i<stepVertexCount;i++){
+    let g = (stepZNorm[i] + STEP8_BAND) / (2*STEP8_BAND);
+    g = Math.max(0, Math.min(1, g));
+    stepUpperWeight[i] = g*g*(3-2*g); // smoothstep
+  }
+  // Shell 1: upper Bubble brightening (additive white glow), intensity
+  // scaled by upperWeight so only the top half ever lights up.
+  const upperGlowGeo = stepShellGeo.clone();
+  const upperGlowColorAttr = new THREE.BufferAttribute(new Float32Array(stepVertexCount*3), 3);
+  upperGlowGeo.setAttribute('color', upperGlowColorAttr);
+  for (let i=0;i<stepVertexCount;i++){ const g = stepUpperWeight[i]; upperGlowColorAttr.setXYZ(i, g, g, g); }
+  const upperGlowMat = new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false });
+  const upperGlowMesh = new THREE.Mesh(upperGlowGeo, upperGlowMat);
+  upperGlowMesh.renderOrder = 4;
+  group.add(upperGlowMesh);
+  // Shell 2: lower Bubble darkness (dark tint), intensity scaled by
+  // lowerWeight (1-upperWeight) so only the bottom half ever carries any
+  // tint -- this is what fades away into transparency over the 5 seconds.
+  const lowerDimGeo = stepShellGeo.clone();
+  const lowerDimColorAttr = new THREE.BufferAttribute(new Float32Array(stepVertexCount*3), 3);
+  lowerDimGeo.setAttribute('color', lowerDimColorAttr);
+  const DIM_TINT = new THREE.Color(0x160a24);
+  for (let i=0;i<stepVertexCount;i++){ const g = 1 - stepUpperWeight[i]; lowerDimColorAttr.setXYZ(i, DIM_TINT.r*g, DIM_TINT.g*g, DIM_TINT.b*g); }
+  const lowerDimMat = new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, side:THREE.DoubleSide, depthWrite:false });
+  const lowerDimMesh = new THREE.Mesh(lowerDimGeo, lowerDimMat);
+  lowerDimMesh.renderOrder = 4;
+  group.add(lowerDimMesh);
 
   // ---- 3-section trajectory:
   //   Section 1 (brown)  -- a WIDE, LOW sweep: broad arcs, starting deep
@@ -1705,10 +1749,9 @@ function buildHienLuanAnimation(root, colorHex){
                                       // ~1.2s [a bit faster], Section 3
                                       // ~0.6s [fastest]).
   const STREAM_START = 0.4;          // energy stream begins shortly after SCA appears
-  const STEP8_START = 10.0;          // (inert while STEP8_ENABLED = false)
-  const STEP8_RAMP = 0.4;
-  const STEP8_HOLD = 3.0;
-  const CYCLE = STEP8_START + STEP8_HOLD; // 13s total -- then the whole sequence restarts
+  const STEP8_START = 10.0;          // Step 8 (Bubble brighten/fade) begins ~10s in
+  const STEP8_DURATION = 5.0;        // the brighten/fade transition lasts 5 seconds
+  const CYCLE = STEP8_START + STEP8_DURATION; // 15s total -- the whole sequence resets right after Step 8 finishes
 
   const tmpColorB = new THREE.Color();
 
@@ -1718,9 +1761,15 @@ function buildHienLuanAnimation(root, colorHex){
     // SCA glyph fades in at the very start of every loop.
     scaSprite.material.opacity = smooth(clamp01(t/1.0));
 
-    // Step 8 disabled for now -- kept as an inert no-op so it can be
-    // switched back on later without touching the rest of the sequence.
-    if (STEP8_ENABLED) { /* intentionally left blank while disabled */ }
+    // Step 8: upper Bubble slowly turns whiter (light switching on) while
+    // the lower Bubble's darkness fades into transparency -- both eased
+    // smoothly over the 5-second window starting at STEP8_START, then the
+    // whole sequence resets (t wraps back to 0 via the % CYCLE above).
+    if (STEP8_ENABLED) {
+      const step8P = smooth(clamp01((t - STEP8_START) / STEP8_DURATION));
+      upperGlowMat.opacity = step8P * 0.75;
+      lowerDimMat.opacity = (1 - step8P) * 0.55;
+    }
 
     // Streamlines + flowing particles fade in alongside the energy stream.
     const streamFade = smooth(clamp01((t - STREAM_START) / 1.0));
