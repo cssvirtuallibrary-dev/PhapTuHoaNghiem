@@ -1647,19 +1647,31 @@ function buildHienLuanAnimation(root, colorHex){
   const smooth = (x) => x*x*(3-2*x);
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
-  // Brightness multipliers applied on top of each section's base hue so all
-  // three sections -- especially Section 3's near-white burst, which was
-  // washing out against the bright Bubble -- stay clearly, vividly visible.
-  const BRIGHTNESS_SECTION1 = 3.4;
-  const BRIGHTNESS_SECTION2 = 2.6;
-  const BRIGHTNESS_SECTION3 = 2.1;
-  function brightenColor(c, k){ c.r = Math.min(1, c.r*k); c.g = Math.min(1, c.g*k); c.b = Math.min(1, c.b*k); }
+  // ROOT CAUSE of Section 2 reading as white/cyan instead of green: the old
+  // brightenColor() multiplied r/g/b directly and clamped each channel to 1
+  // independently. SECTION2_COLOR (0x35ff8a = r0.21,g1.0,b0.54) times its
+  // old 2.6x multiplier produced (0.54, 1, 1) -- g and b both slammed to
+  // their 1.0 ceiling, which desaturates the color into pale cyan-white,
+  // destroying the green hue entirely. Fixed by brightening in HSL space
+  // instead: hue and saturation are preserved exactly, and only lightness
+  // is lifted (eased toward, never past, a capped ceiling) -- so a color
+  // gets brighter/more vivid without ever being washed out toward white.
+  const LIFT_SECTION1 = 0.55; // brown starts very dark, so lift it the most
+  const LIFT_SECTION2 = 0.12; // green is already fairly bright by default -- only a gentle lift, enough to stay vivid and clearly green
+  const LIFT_SECTION3 = 0.55; // light phase is intentionally designed to trend toward white -- lift is fine here
+  const tmpHSL = { h:0, s:0, l:0 };
+  function brightenColor(c, lift){
+    c.getHSL(tmpHSL);
+    tmpHSL.l = Math.min(0.88, tmpHSL.l + (1 - tmpHSL.l) * lift);
+    tmpHSL.s = Math.min(1, tmpHSL.s * 1.08);
+    c.setHSL(tmpHSL.h, tmpHSL.s, tmpHSL.l);
+  }
   function phaseColorAt(s, outColor){
-    if (s < S1 - BLEND_BAND) { outColor.copy(BROWN_COLOR); brightenColor(outColor, BRIGHTNESS_SECTION1); return; }
-    if (s < S1 + BLEND_BAND) { const k=(s-(S1-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(BROWN_COLOR).lerp(SECTION2_COLOR, k); brightenColor(outColor, BRIGHTNESS_SECTION1 + (BRIGHTNESS_SECTION2-BRIGHTNESS_SECTION1)*k); return; }
-    if (s < S2 - BLEND_BAND) { outColor.copy(SECTION2_COLOR); brightenColor(outColor, BRIGHTNESS_SECTION2); return; }
-    if (s < S2 + BLEND_BAND) { const k=(s-(S2-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(SECTION2_COLOR).lerp(LIGHT_COLOR, k); brightenColor(outColor, BRIGHTNESS_SECTION2 + (BRIGHTNESS_SECTION3-BRIGHTNESS_SECTION2)*k); return; }
-    outColor.copy(LIGHT_COLOR); brightenColor(outColor, BRIGHTNESS_SECTION3);
+    if (s < S1 - BLEND_BAND) { outColor.copy(BROWN_COLOR); brightenColor(outColor, LIFT_SECTION1); return; }
+    if (s < S1 + BLEND_BAND) { const k=(s-(S1-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(BROWN_COLOR).lerp(SECTION2_COLOR, k); brightenColor(outColor, LIFT_SECTION1 + (LIFT_SECTION2-LIFT_SECTION1)*k); return; }
+    if (s < S2 - BLEND_BAND) { outColor.copy(SECTION2_COLOR); brightenColor(outColor, LIFT_SECTION2); return; }
+    if (s < S2 + BLEND_BAND) { const k=(s-(S2-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(SECTION2_COLOR).lerp(LIGHT_COLOR, k); brightenColor(outColor, LIFT_SECTION2 + (LIFT_SECTION3-LIFT_SECTION2)*k); return; }
+    outColor.copy(LIGHT_COLOR); brightenColor(outColor, LIFT_SECTION3);
   }
   // Which of the 3 sections (0, 1, 2) a given phase position s belongs to --
   // used to gate each section's staged reveal below.
@@ -1793,21 +1805,66 @@ function buildHienLuanAnimation(root, colorHex){
       streamColors[base] = tmpColorA.r; streamColors[base+1] = tmpColorA.g; streamColors[base+2] = tmpColorA.b;
     }
   });
-  // 3 independent materials (+ 3 halo materials), one per section, so each
-  // section's opacity can be driven on its own staged timeline below.
-  const sectionLineMats = [0,1,2].map(() => new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
-  const sectionHaloMats = [0,1,2].map(() => new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
-  // A second, dimmer "halo" line-set drawn alongside each core streamline
-  // visually thickens every ray (LineBasicMaterial's linewidth is
-  // unsupported cross-browser in WebGL, so this duplication is the reliable
-  // way to make the rays read as wider, more visible bands).
-  const haloOffsets = [
-    new THREE.Vector3(0.028,0.028,0), new THREE.Vector3(-0.028,-0.028,0),
-    new THREE.Vector3(0,0.028,0.028), new THREE.Vector3(0,-0.028,-0.028),
-    new THREE.Vector3(0.028,0,-0.028)
-  ];
+  // Builds ONE solid tube mesh (not a bundle of separate offset lines) by
+  // extruding a small ring of vertices around each sampled point. The ring
+  // frame is parallel-transported from one point to the next (each new
+  // normal is the previous normal re-projected orthogonal to the new
+  // tangent), which keeps the tube from visibly twisting along a curving
+  // path. Every vertex in a given ring shares that point's phase color, so
+  // the whole tube reads as one continuous, solid, correctly-colored
+  // strand -- not several thin parallel threads.
+  function buildColoredTubeGeometry(posArr, colArr, radius, radialSegments){
+    const count = posArr.length/3;
+    const pts = new Array(count);
+    for (let i=0;i<count;i++) pts[i] = new THREE.Vector3(posArr[i*3], posArr[i*3+1], posArr[i*3+2]);
+    const tangents = new Array(count);
+    for (let i=0;i<count;i++){
+      const a = pts[Math.max(0,i-1)], b = pts[Math.min(count-1,i+1)];
+      tangents[i] = b.clone().sub(a).normalize();
+    }
+    const normals = new Array(count), binormals = new Array(count);
+    let seed = new THREE.Vector3(0,0,1);
+    if (Math.abs(tangents[0].dot(seed)) > 0.9) seed = new THREE.Vector3(1,0,0);
+    normals[0] = seed.clone().sub(tangents[0].clone().multiplyScalar(tangents[0].dot(seed))).normalize();
+    binormals[0] = new THREE.Vector3().crossVectors(tangents[0], normals[0]).normalize();
+    for (let i=1;i<count;i++){
+      let n = normals[i-1].clone().sub(tangents[i].clone().multiplyScalar(tangents[i].dot(normals[i-1])));
+      if (n.lengthSq() < 1e-8) n = binormals[i-1].clone();
+      n.normalize();
+      normals[i] = n;
+      binormals[i] = new THREE.Vector3().crossVectors(tangents[i], n).normalize();
+    }
+    const positions = [], colors = [];
+    for (let i=0;i<count;i++){
+      for (let j=0;j<=radialSegments;j++){
+        const theta = (j/radialSegments) * Math.PI * 2;
+        const off = normals[i].clone().multiplyScalar(Math.cos(theta)*radius).add(binormals[i].clone().multiplyScalar(Math.sin(theta)*radius));
+        const v = pts[i].clone().add(off);
+        positions.push(v.x, v.y, v.z);
+        colors.push(colArr[i*3], colArr[i*3+1], colArr[i*3+2]);
+      }
+    }
+    const indices = [];
+    for (let i=0;i<count-1;i++){
+      for (let j=0;j<radialSegments;j++){
+        const a = i*(radialSegments+1)+j, b = a+radialSegments+1, c = b+1, d = a+1;
+        indices.push(a,b,d, b,c,d);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setIndex(indices);
+    return geo;
+  }
+  // 3 independent materials, one per section, so each section's opacity can
+  // be driven on its own staged timeline below. MeshBasicMaterial (not
+  // LineBasicMaterial) since these are now real solid tube meshes.
+  const sectionTubeMats = [0,1,2].map(() => new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide }));
+  const STRAND_RADIUS = 0.045; // a single thick strand's radius (replacing the old multi-line-bundle "halo" trick)
+  const STRAND_RADIAL_SEGMENTS = 7;
   // Index boundaries (inclusive on both ends of each segment, so the 3
-  // per-section lines still touch with no visible gap between them).
+  // per-section tubes still touch with no visible gap between them).
   const idxS1 = Math.round(S1 * (STREAM_SEGMENTS-1));
   const idxS2 = Math.round(S2 * (STREAM_SEGMENTS-1));
   const SECTION_RANGES = [ [0, idxS1], [idxS1, idxS2], [idxS2, STREAM_SEGMENTS-1] ];
@@ -1815,24 +1872,11 @@ function buildHienLuanAnimation(root, colorHex){
     const fullPos = streamPositions.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
     const fullCol = streamColors.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
     SECTION_RANGES.forEach(([lo, hi], sectionIdx) => {
-      const count = hi - lo + 1;
       const posSlice = fullPos.slice(lo*3, (hi+1)*3);
       const colSlice = fullCol.slice(lo*3, (hi+1)*3);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(posSlice, 3));
-      geo.setAttribute('color', new THREE.BufferAttribute(colSlice, 3));
-      const line = new THREE.Line(geo, sectionLineMats[sectionIdx]);
-      group.add(line);
-
-      haloOffsets.forEach(off => {
-        const haloPos = posSlice.slice();
-        for (let j=0;j<count;j++){ haloPos[j*3]+=off.x; haloPos[j*3+1]+=off.y; haloPos[j*3+2]+=off.z; }
-        const haloGeo = new THREE.BufferGeometry();
-        haloGeo.setAttribute('position', new THREE.BufferAttribute(haloPos, 3));
-        haloGeo.setAttribute('color', new THREE.BufferAttribute(colSlice.slice(), 3));
-        const haloLine = new THREE.Line(haloGeo, sectionHaloMats[sectionIdx]);
-        group.add(haloLine);
-      });
+      const tubeGeo = buildColoredTubeGeometry(posSlice, colSlice, STRAND_RADIUS, STRAND_RADIAL_SEGMENTS);
+      const tubeMesh = new THREE.Mesh(tubeGeo, sectionTubeMats[sectionIdx]);
+      group.add(tubeMesh);
     });
   }
 
@@ -1858,7 +1902,7 @@ function buildHienLuanAnimation(root, colorHex){
   const particleGeo = new THREE.BufferGeometry();
   particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
   particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
-  const particleMat = new THREE.PointsMaterial({ size:0.22, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true });
+  const particleMat = new THREE.PointsMaterial({ size:0.34, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true }); // bigger glowing flow-balls, easier to track along the strand
   const particlePoints = new THREE.Points(particleGeo, particleMat);
   group.add(particlePoints);
 
@@ -1914,14 +1958,12 @@ function buildHienLuanAnimation(root, colorHex){
       lowerDimMat.opacity = (t >= STEP8_START) ? (1 - step8P) * 0.22 : 0;
     }
 
-    // Each section's streamlines + halo fade in independently, staged one
+    // Each section's solid strand tube fades in independently, staged one
     // after another: Section 1 (brown, pulling toward center) first, then
     // (after a pause) Section 2 (green), then (after another pause)
     // Section 3 (bright burst).
     for (let i=0;i<3;i++){
-      const reveal = sectionRevealAt(i, t);
-      sectionLineMats[i].opacity = 1.0 * reveal;
-      sectionHaloMats[i].opacity = 0.65 * reveal;
+      sectionTubeMats[i].opacity = 0.95 * sectionRevealAt(i, t);
     }
     particleMat.opacity = sectionRevealAt(0, t); // particles turn on as soon as Section 1 begins; individual particles beyond an unrevealed section are hidden via zeroed color below
 
