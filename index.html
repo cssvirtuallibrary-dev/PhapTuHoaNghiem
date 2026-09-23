@@ -1537,6 +1537,37 @@ function buildHienLuanAnimation(root, colorHex){
     outColor.copy(LIGHT_COLOR);
   }
 
+  // ---- Shared cubic-Hermite spline helper + Section 3 burst keyframes.
+  // Standard Hermite basis (h00,h10,h01,h11) evaluated per-segment with a
+  // LOCAL u in [0,1]; because the tangent value at each interior keyframe
+  // is reused as both the outgoing tangent of the segment before it and
+  // the incoming tangent of the segment after it, the resulting curve's
+  // direction is guaranteed continuous across every join -- i.e. one
+  // single smooth line, not three separate pieces glued together.
+  const HIENLUAN_BURST_BREAKS = [0.0, 0.32, 0.62, 1.0];
+  // (r, z) keyframes: crown -> trunk-top -> arc peak (up & out) -> cascade end (near Bubble wall)
+  const HIENLUAN_BURST_R_KEYS = [0.0, 0.03, 0.55, BUBBLE_R*0.885];
+  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.35, TIP_Z+0.85, TIP_Z-0.68];
+  // Shared tangent vectors at each keyframe (dr, dz) -- reused across
+  // adjacent segments to guarantee smooth (no-kink) joins.
+  const HIENLUAN_BURST_R_TANGENTS = [0.12, 0.55, 1.3, 1.0];
+  const HIENLUAN_BURST_Z_TANGENTS = [1.0, 0.9, -0.3, -0.9];
+  function hermiteSpline1D(keys, tangents, breaks, p){
+    const n = breaks.length - 1;
+    let segIdx = n - 1;
+    for (let i=0;i<n;i++){ if (p <= breaks[i+1]) { segIdx = i; break; } }
+    const p0 = keys[segIdx], p1 = keys[segIdx+1];
+    const m0 = tangents[segIdx], m1 = tangents[segIdx+1];
+    const dt = breaks[segIdx+1] - breaks[segIdx];
+    const u = Math.max(0, Math.min(1, (p - breaks[segIdx]) / dt));
+    const u2 = u*u, u3 = u2*u;
+    const h00 = 2*u3 - 3*u2 + 1;
+    const h10 = u3 - 2*u2 + u;
+    const h01 = -2*u3 + 3*u2;
+    const h11 = u3 - u2;
+    return h00*p0 + h10*dt*m0 + h01*p1 + h11*dt*m1;
+  }
+
   function energyPointAt(s, seed, outVec){
     let x, y, z;
     if (s < S1){
@@ -1568,50 +1599,26 @@ function buildHienLuanAnimation(root, colorHex){
       }
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
-      // Section 3: three-stage profile inspired by +TORUS_OUT's
-      // trunk-then-arc structure, extended with an explicit "arc up and
-      // out" stage so the rays genuinely keep RISING while beginning to
-      // widen (not just fanning out flat) before curving over and
-      // cascading down -- similar to how the TORUS_OUT streamlines swoop
-      // up and over before descending.
-      //   Stage A (trunk, p<0.32):   bundled together, rising straight up
-      //                              out of the crown.
-      //   Stage B (arc up, 0.32-0.62): radius starts growing WHILE height
-      //                              keeps increasing further -- the rays
-      //                              visibly separate as they arc up and
-      //                              outward, past the crown's height.
-      //   Stage C (cascade, 0.62-1): past the peak, radius keeps growing
-      //                              while height now descends, curving
-      //                              the rays down toward the Bubble's
-      //                              inner surface.
-      // All three stages are built from the exact same (r,z) profile for
-      // every ray -- only the fixed azimuth (seed.umbrellaAzimuth) differs
-      // between the 12 rays, so they form evenly spaced ribs of one shared
-      // umbrella-shaped sweep. Peak distance from center stays well inside
-      // BUBBLE_R*0.985, so the rays never touch/exceed the Bubble wall.
+      // Section 3: ONE smooth, continuous cubic-Hermite spline through
+      // the crown-rise / arc-up-and-out / cascade-down keyframes -- not
+      // three separate piecewise-linear segments. The spline's tangent
+      // vector is shared at each interior keyframe (HERMITE_TANGENTS[1]
+      // between the trunk and arc-up segments, HERMITE_TANGENTS[2]
+      // between the arc-up and cascade segments), which mathematically
+      // guarantees the curve's direction matches exactly across each
+      // join -- i.e. a single unbroken, smooth line with no kinks or
+      // corners, rather than a path assembled from straight pieces.
+      // All 12 rays trace this identical (r,z) curve -- only the fixed
+      // azimuth (seed.umbrellaAzimuth) differs -- so together they form
+      // 12 evenly spaced, perfectly smooth ribs of one shared umbrella
+      // sweep. Max radial distance stays safely inside BUBBLE_R*0.985.
       const p = (s-S2)/(1-S2);
-      const RISE_FRAC = 0.32;
-      const ARC_FRAC = 0.62;
-      const TRUNK_TOP_Z = TIP_Z + 0.35;   // trunk rises a bit above the crown
-      const PEAK_R = 0.55, PEAK_Z = TIP_Z + 0.85; // arc's peak: higher AND already widening outward
-      const END_R = BUBBLE_R*0.885, END_Z = TIP_Z - 0.68; // cascade's end point, close to the Bubble's inner surface
-      let r;
-      if (p < RISE_FRAC){
-        const rp = smooth(p/RISE_FRAC);
-        r = 0.015;
-        z = TIP_Z + rp*(TRUNK_TOP_Z - TIP_Z);
-      } else if (p < ARC_FRAC){
-        const sp = smooth((p-RISE_FRAC)/(ARC_FRAC-RISE_FRAC));
-        r = 0.015 + sp*(PEAK_R - 0.015);
-        z = TRUNK_TOP_Z + sp*(PEAK_Z - TRUNK_TOP_Z); // keeps RISING while widening -- the "arc up and out" the user asked for
-      } else {
-        const sp = smooth((p-ARC_FRAC)/(1-ARC_FRAC));
-        r = PEAK_R + sp*(END_R - PEAK_R);
-        z = PEAK_Z + sp*(END_Z - PEAK_Z); // now curves over and cascades down toward the Bubble's inner surface
-      }
+      const r = hermiteSpline1D(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_R_TANGENTS, HIENLUAN_BURST_BREAKS, p);
+      const zSpline = hermiteSpline1D(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_Z_TANGENTS, HIENLUAN_BURST_BREAKS, p);
       const finalAngle = seed.umbrellaAzimuth; // fixed, evenly-spaced heading for this ray -- never changes during the burst
-      x = r*Math.cos(finalAngle);
-      y = r*Math.sin(finalAngle);
+      x = Math.max(0, r)*Math.cos(finalAngle);
+      y = Math.max(0, r)*Math.sin(finalAngle);
+      z = zSpline;
     }
     outVec.set(x, y, z);
   }
