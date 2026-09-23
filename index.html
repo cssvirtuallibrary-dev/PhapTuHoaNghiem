@@ -1698,15 +1698,30 @@ function buildHienLuanAnimation(root, colorHex){
   // the whole path (crown rise -> arc up-and-out -> long cascade hugging
   // the Bubble's inner wall) is ONE smooth, continuous, fountain-dome-like
   // line, not separate pieces glued together.
-  const HIENLUAN_BURST_BREAKS = [0.0, 0.28, 0.48, 0.68, 0.85, 1.0];
-  // (r, z) keyframes: crown -> trunk-top -> arc peak (rising & widening) ->
-  // two cascade keyframes that stay close to the Bubble's inner surface
-  // (radius ~1.92-1.99, safely under BUBBLE_R*0.985 ~= 2.07) -> cascade end.
-  // This long, sphere-hugging run through the last 3 keyframes is what
-  // gives the "water fountain umbrella dome" look -- the rays curve over
-  // and then closely trace the dome's curvature on the way down.
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.03, 0.55, 1.45, 1.85, 1.90];
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.32, TIP_Z+0.82, TIP_Z+0.35, TIP_Z-0.35, TIP_Z-0.75];
+  // REDESIGNED per the reference side-view/top-view sketches: the ray now
+  // rises from the crown, arcs up-and-out to a wide peak (matching the
+  // side-view's broad rising arch), THEN -- instead of simply cascading
+  // straight down along the Bubble's inner wall as before -- it curls back
+  // INWARD near the end, closing back down toward a point close to the
+  // central axis (matching the side view's downward-curving finish, and
+  // the top view's loop that "curls around... back toward the center,
+  // ending in a pointed arrow-like shape beside the central square").
+  const HIENLUAN_BURST_BREAKS = [0.0, 0.22, 0.42, 0.62, 0.82, 1.0];
+  // (r, z) keyframes: crown -> trunk-top -> wide arc peak (rising &
+  // widening, out near the Bubble's inner surface) -> begins curling back
+  // inward -> continues hooking inward and downward -> ends near the
+  // central axis with a small, pointed radius (the "arrowhead" tip seen in
+  // the top-view sketch), rather than staying wide all the way down.
+  const HIENLUAN_BURST_R_KEYS = [0.0, 0.05, 0.60, 1.55, 1.35, 0.25];
+  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.35, TIP_Z+0.85, TIP_Z+0.30, TIP_Z-0.40, TIP_Z-0.80];
+  // Azimuthal "swirl" shape (unitless progress 0->1, later multiplied by
+  // 2*PI*seed.umbrellaSwirl below) -- almost no rotation during the initial
+  // rise/arc-up (matching the top-view sketch's mostly-straight opening
+  // stroke), then the swirl sharply increases through the cascade/hook
+  // phase, giving each ray the curling, spiral "loops around... back
+  // toward the center" look from directly above, instead of staying at a
+  // single fixed heading the whole time as before.
+  const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.0, 0.05, 0.30, 0.68, 1.0];
   function computeFiniteDiffTangents(keys, breaks){
     const n = keys.length;
     const m = new Array(n);
@@ -1717,6 +1732,7 @@ function buildHienLuanAnimation(root, colorHex){
   }
   const HIENLUAN_BURST_R_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_BREAKS);
   const HIENLUAN_BURST_Z_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_BREAKS);
+  const HIENLUAN_BURST_THETA_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_THETA_KEYS, HIENLUAN_BURST_BREAKS);
   function hermiteSpline1D(keys, tangents, breaks, p){
     const n = breaks.length - 1;
     let segIdx = n - 1;
@@ -1764,23 +1780,33 @@ function buildHienLuanAnimation(root, colorHex){
       }
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
-      // Section 3: ONE smooth, continuous cubic-Hermite spline through
-      // the crown-rise / arc-up-and-out / cascade-down keyframes -- not
-      // three separate piecewise-linear segments. The spline's tangent
-      // vector is shared at each interior keyframe (HERMITE_TANGENTS[1]
-      // between the trunk and arc-up segments, HERMITE_TANGENTS[2]
-      // between the arc-up and cascade segments), which mathematically
-      // guarantees the curve's direction matches exactly across each
-      // join -- i.e. a single unbroken, smooth line with no kinks or
-      // corners, rather than a path assembled from straight pieces.
-      // All 12 rays trace this identical (r,z) curve -- only the fixed
-      // azimuth (seed.umbrellaAzimuth) differs -- so together they form
-      // 12 evenly spaced, perfectly smooth ribs of one shared umbrella
-      // sweep. Max radial distance stays safely inside BUBBLE_R*0.985.
+      // Section 3 (REDESIGNED to match the reference side-view/top-view
+      // sketches): ONE smooth, continuous cubic-Hermite spline through the
+      // crown-rise / arc-up-and-out / inward-curling-hook keyframes -- not
+      // separate piecewise-linear segments. The spline's tangent vector is
+      // shared at every interior keyframe (via the finite-difference
+      // tangents computed above), which guarantees the curve's direction
+      // matches exactly across each join -- a single unbroken, smooth
+      // line with no kinks or corners.
+      // NEW: the heading is no longer fixed for the whole burst -- an
+      // azimuthal "swirl" spline (HIENLUAN_BURST_THETA_KEYS) rotates each
+      // ray progressively around its own starting azimuth as it travels,
+      // concentrated in the later cascade/hook phase. Combined with the r
+      // keyframes curling back toward the central axis at the very end,
+      // every ray now spirals outward-and-over then curls back in on
+      // itself -- reproducing, from directly above, the sketch's "loops
+      // around... back toward the center, ending in a pointed arrow-like
+      // shape" -- rather than the previous fixed-heading straight rib.
+      // All rays trace this identical (r,z,swirl) curve -- only each ray's
+      // own starting azimuth (seed.umbrellaAzimuth) differs -- so together
+      // they form evenly spaced, perfectly smooth curling ribs of one
+      // shared umbrella sweep. Max radial distance stays safely inside
+      // BUBBLE_R*0.985.
       const p = (s-S2)/(1-S2);
       const r = hermiteSpline1D(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_R_TANGENTS, HIENLUAN_BURST_BREAKS, p);
       const zSpline = hermiteSpline1D(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_Z_TANGENTS, HIENLUAN_BURST_BREAKS, p);
-      const finalAngle = seed.umbrellaAzimuth; // fixed, evenly-spaced heading for this ray -- never changes during the burst
+      const thetaShape = hermiteSpline1D(HIENLUAN_BURST_THETA_KEYS, HIENLUAN_BURST_THETA_TANGENTS, HIENLUAN_BURST_BREAKS, p);
+      const finalAngle = seed.umbrellaAzimuth + thetaShape * seed.umbrellaSwirl * Math.PI * 2;
       x = Math.max(0, r)*Math.cos(finalAngle);
       y = Math.max(0, r)*Math.sin(finalAngle);
       z = zSpline;
