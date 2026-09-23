@@ -2022,20 +2022,6 @@ function initCardViz(container, fields, triggers, statusEl){
     camera.position.set(d*0.62, d*0.72, d*0.42);
     camera.updateProjectionMatrix();
   }
-  // Some sequences (+LOTUS_SEQUENCE, +HIEN_LUAN, +EGO_SEQUENCE) build extra
-  // geometry ASYNCHRONOUSLY, well after the single positionCamera() call
-  // below normally runs -- so their true spatial extents were never being
-  // accounted for, and the camera stayed zoomed in too tight for their
-  // Bubble of Ego / crown-burst rays / offset glyph markers to fully fit in
-  // view. KNOWN_TRIGGER_EXTENTS lets us pre-register each orchestrated
-  // sequence's final extent up front (their geometry is static/known ahead
-  // of time), so positionCamera() can be computed correctly from the very
-  // start with no visible re-zooming later.
-  const KNOWN_TRIGGER_EXTENTS = {
-    LOTUS_SEQUENCE: [2.1, 1.5],       // Bubble of Ego (radius 2.1) + Lotus bloom/merge extent
-    HIEN_LUAN: [2.1, 2.3],            // Bubble of Ego (radius 2.1) + Hien Luan crown-burst dome extent
-    EGO_SEQUENCE: [3.3]               // Bubble of Ego + farthest glyph marker (~-2, 1.5, 2)
-  };
 
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -2103,16 +2089,6 @@ function initCardViz(container, fields, triggers, statusEl){
   });
   if (triggers.length && statusEl) statusEl.textContent = `▶ Hiệu ứng: ${triggers.map(t=>triggerDisplayLabel(t)).join(' ')}`;
 
-  // Pre-register the known final extents of any orchestrated sequence on
-  // this card BEFORE the single positionCamera() call below, so the
-  // camera is framed wide enough from the very first frame to show the
-  // whole animation (Bubble of Ego, crown burst, offset glyph markers,
-  // etc.) without needing to re-zoom mid-sequence.
-  triggers.forEach(trig => {
-    const extents = KNOWN_TRIGGER_EXTENTS[trig];
-    if (extents) activeExtents.push(...extents);
-  });
-
   scene.add(rootGroup);
   positionCamera();
 
@@ -2162,7 +2138,7 @@ function initCardViz(container, fields, triggers, statusEl){
     // 1-second delay used by the other orchestrated sequences.
     loadSharedBuddhaModel().catch(() => {}).then(() => {
       setTimeout(() => {
-        // Step 2: build the whole +EGO_ALL sequence -- it manages its own
+        // Step 2: build the whole +EGO_SEQUENCE sequence -- it manages its own
         // 6-step glyph reveal AND forms the Bubble of Ego internally (at
         // step 4), so only a single build call is needed here.
         const egoSequenceOffset = (performance.now() - clockStart) / 1000;
