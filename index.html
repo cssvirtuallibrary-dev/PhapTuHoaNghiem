@@ -2165,7 +2165,7 @@ function initCardViz(container, fields, triggers, statusEl){
     // 1-second delay used by the other orchestrated sequences.
     loadSharedBuddhaModel().catch(() => {}).then(() => {
       setTimeout(() => {
-        // Step 2: build the whole +EGO_ALL sequence -- it manages its own
+        // Step 2: build the whole +EGO_SEQUENCE sequence -- it manages its own
         // 6-step glyph reveal AND forms the Bubble of Ego internally (at
         // step 4), so only a single build call is needed here.
         const egoSequenceOffset = (performance.now() - clockStart) / 1000;
