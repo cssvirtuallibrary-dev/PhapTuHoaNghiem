@@ -1496,35 +1496,35 @@ function buildHienLuanAnimation(root, colorHex){
   // without rebuilding this whole sequence.
   const STEP8_ENABLED = false;
 
-  // ---- 3-section trajectory:
-  //   Section 1 (brown)  -- a WIDE, LOW sweep: broad arcs, starting deep
-  //                         below the Buddha and out near the Bubble's
-  //                         inner wall, sweeping in less than one full turn
-  //                         (like broad converging rays, not a tight
-  //                         vortex) as they funnel down toward a single
-  //                         point at Z=0 (the mouth of the core spiral).
-  //   Section 2 (blue)   -- exactly ONE visible strand: it starts at that
-  //                         same converge point (r=0, Z=0), widens out to
-  //                         the Buddha's body diameter over its FIRST loop,
-  //                         then slowly narrows again, loop by loop, over
-  //                         the next 4 loops, arriving at a point exactly
-  //                         at the crown (Z=1). All particles/streamlines
-  //                         share this identical single-line path here, so
-  //                         only one coil is ever visible.
-  //   Section 3 (light)  -- bursts outward starting exactly AT the crown
-  //                         (Z=1, r=0) -- not at Z=0 -- then fans out into
-  //                         12 distinct rays sweeping down across the
-  //                         upper Bubble in one smooth dome.
-  const BROWN_COLOR = new THREE.Color(0x9a6a34);
-  const BLUE_COLOR  = new THREE.Color(0x29b6f6);
-  const LIGHT_COLOR = new THREE.Color(colorHex || '#ffe9a8');
-  const S1 = 0.32, S2 = 0.68; // phase boundaries: brown converge | blue conch spiral | light dome burst
-  const BLEND_BAND = 0.05;    // soft crossfade width at each phase boundary
+  // ---- 3-section trajectory + color/speed progression:
+  //   Section 1 (darkest brown)  -- slowest: a WIDE, LOW sweep funneling
+  //                                  down to a single point at Z=0.
+  //   Section 2 (lighter blue)   -- slightly faster: ONE shared spiral
+  //                                  strand, widening to the Buddha's body
+  //                                  diameter over its first loop, then
+  //                                  narrowing loop by loop over 4 more
+  //                                  loops, ending at the crown (Z=1).
+  //   Section 3 (brightest white)-- fastest: bursts outward starting
+  //                                  exactly AT the crown, fanning into 12
+  //                                  rays sweeping down across the upper
+  //                                  Bubble in one smooth dome.
+  const BROWN_COLOR = new THREE.Color(0x3d2410);               // darkest -- raw, unconverted energy
+  const BLUE_COLOR  = new THREE.Color(0x7fe0ff);                // lighter -- energy mid-transformation
+  const LIGHT_COLOR = new THREE.Color(colorHex || '#ffe9a8').lerp(new THREE.Color(0xffffff), 0.88); // brightest white -- fully transformed light
+
+  // Time allocation across one particle loop -- this is what makes each
+  // section read at a different SPEED: Section 1 gets the largest share of
+  // time for its distance (slowest), Section 2 a bit less (slightly
+  // faster), Section 3 the smallest share (fastest).
+  const S1 = 0.50;    // Section 1 occupies the first 50% of the loop -- slow
+  const S2 = 0.8333;  // Section 2 occupies the next ~33% -- a bit faster
+                       // Section 3 occupies the final ~17% -- fastest
+  const BLEND_BAND = 0.04;    // soft crossfade width at each phase boundary
   const CONVERGE_TURNS = 0.6; // wide, low sweep -- well under one full turn
   const CONCH_TOTAL_TURNS = 5;      // 1 widening loop + 4 narrowing loops
   const CONCH_WIDEN_FRACTION = 0.2; // 1 of the 5 total loops is the widening phase
   const CONCH_MAX_R = 0.6;          // widens out to roughly the Buddha's body diameter
-  const DOME_MAX_THETA = 2.0;       // polar angle (radians) the dome burst sweeps down to -- widened so it fills much more of the Bubble's interior
+  const DOME_MAX_THETA = 1.3;       // polar angle (radians) the dome burst sweeps down to (~74 deg from the pole)
 
   const smooth = (x) => x*x*(3-2*x);
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
@@ -1535,50 +1535,6 @@ function buildHienLuanAnimation(root, colorHex){
     if (s < S2 - BLEND_BAND) { outColor.copy(BLUE_COLOR); return; }
     if (s < S2 + BLEND_BAND) { const k=(s-(S2-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(BLUE_COLOR).lerp(LIGHT_COLOR, k); return; }
     outColor.copy(LIGHT_COLOR);
-  }
-
-  // ---- Shared cubic-Hermite spline helper + Section 3 burst keyframes.
-  // Standard Hermite basis (h00,h10,h01,h11) evaluated per-segment with a
-  // LOCAL u in [0,1]. Tangents at every interior keyframe are computed
-  // automatically with a finite-difference (Catmull-Rom-style) formula --
-  // m[i] = (key[i+1]-key[i-1]) / (t[i+1]-t[i-1]) -- which guarantees the
-  // curve's direction matches exactly on both sides of every keyframe, so
-  // the whole path (crown rise -> arc up-and-out -> long cascade hugging
-  // the Bubble's inner wall) is ONE smooth, continuous, fountain-dome-like
-  // line, not separate pieces glued together.
-  const HIENLUAN_BURST_BREAKS = [0.0, 0.28, 0.48, 0.68, 0.85, 1.0];
-  // (r, z) keyframes: crown -> trunk-top -> arc peak (rising & widening) ->
-  // two cascade keyframes that stay close to the Bubble's inner surface
-  // (radius ~1.92-1.99, safely under BUBBLE_R*0.985 ~= 2.07) -> cascade end.
-  // This long, sphere-hugging run through the last 3 keyframes is what
-  // gives the "water fountain umbrella dome" look -- the rays curve over
-  // and then closely trace the dome's curvature on the way down.
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.03, 0.55, 1.45, 1.85, 1.90];
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.32, TIP_Z+0.82, TIP_Z+0.35, TIP_Z-0.35, TIP_Z-0.75];
-  function computeFiniteDiffTangents(keys, breaks){
-    const n = keys.length;
-    const m = new Array(n);
-    m[0] = (keys[1]-keys[0]) / (breaks[1]-breaks[0]);
-    m[n-1] = (keys[n-1]-keys[n-2]) / (breaks[n-1]-breaks[n-2]);
-    for (let i=1;i<n-1;i++){ m[i] = (keys[i+1]-keys[i-1]) / (breaks[i+1]-breaks[i-1]); }
-    return m;
-  }
-  const HIENLUAN_BURST_R_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_BREAKS);
-  const HIENLUAN_BURST_Z_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_BREAKS);
-  function hermiteSpline1D(keys, tangents, breaks, p){
-    const n = breaks.length - 1;
-    let segIdx = n - 1;
-    for (let i=0;i<n;i++){ if (p <= breaks[i+1]) { segIdx = i; break; } }
-    const p0 = keys[segIdx], p1 = keys[segIdx+1];
-    const m0 = tangents[segIdx], m1 = tangents[segIdx+1];
-    const dt = breaks[segIdx+1] - breaks[segIdx];
-    const u = Math.max(0, Math.min(1, (p - breaks[segIdx]) / dt));
-    const u2 = u*u, u3 = u2*u;
-    const h00 = 2*u3 - 3*u2 + 1;
-    const h10 = u3 - 2*u2 + u;
-    const h01 = -2*u3 + 3*u2;
-    const h11 = u3 - u2;
-    return h00*p0 + h10*dt*m0 + h01*p1 + h11*dt*m1;
   }
 
   function energyPointAt(s, seed, outVec){
@@ -1612,37 +1568,24 @@ function buildHienLuanAnimation(root, colorHex){
       }
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
-      // Section 3: ONE smooth, continuous cubic-Hermite spline through
-      // the crown-rise / arc-up-and-out / cascade-down keyframes -- not
-      // three separate piecewise-linear segments. The spline's tangent
-      // vector is shared at each interior keyframe (HERMITE_TANGENTS[1]
-      // between the trunk and arc-up segments, HERMITE_TANGENTS[2]
-      // between the arc-up and cascade segments), which mathematically
-      // guarantees the curve's direction matches exactly across each
-      // join -- i.e. a single unbroken, smooth line with no kinks or
-      // corners, rather than a path assembled from straight pieces.
-      // All 12 rays trace this identical (r,z) curve -- only the fixed
-      // azimuth (seed.umbrellaAzimuth) differs -- so together they form
-      // 12 evenly spaced, perfectly smooth ribs of one shared umbrella
-      // sweep. Max radial distance stays safely inside BUBBLE_R*0.985.
+      // Section 3: bursts outward starting exactly AT the crown (r=TIP_Z,
+      // polar angle 0 -> Cartesian (0,0,TIP_Z)) -- not at Z=0 -- then fans
+      // out into each seed's own direction as the radius grows and the
+      // polar angle sweeps down, tracing one smooth, continuous dome.
       const p = (s-S2)/(1-S2);
-      const r = hermiteSpline1D(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_R_TANGENTS, HIENLUAN_BURST_BREAKS, p);
-      const zSpline = hermiteSpline1D(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_Z_TANGENTS, HIENLUAN_BURST_BREAKS, p);
-      const finalAngle = seed.umbrellaAzimuth; // fixed, evenly-spaced heading for this ray -- never changes during the burst
-      x = Math.max(0, r)*Math.cos(finalAngle);
-      y = Math.max(0, r)*Math.sin(finalAngle);
-      z = zSpline;
+      const ease = smooth(p);
+      const r = TIP_Z + ease*(BUBBLE_R*0.94 - TIP_Z);
+      const theta = ease*DOME_MAX_THETA;
+      const angle = seed.umbrellaAzimuth + ease*seed.umbrellaSwirl;
+      x = r*Math.sin(theta)*Math.cos(angle);
+      y = r*Math.sin(theta)*Math.sin(angle);
+      z = r*Math.cos(theta);
     }
     outVec.set(x, y, z);
   }
 
-  // ---- Streamlines (static full paths, colored per-section) -- the
-  // "TORUS" visual language: thin, glowing, additively-blended lines
-  // tracing the whole flow. 12 lines total (up from 6) so Section 1's wide
-  // converging sweep and Section 3's crown burst both read as a full fan of
-  // rays, while Section 2 collapses all of them onto one shared coil.
   const NUM_STREAMLINES = 12;
-  const STREAM_SEGMENTS = 480; // high resolution so the Section 2 coil (5 tight loops) renders as a smooth curve instead of visibly faceted/broken straight segments
+  const STREAM_SEGMENTS = 70;
   const streamSeeds = [];
   for (let i=0;i<NUM_STREAMLINES;i++){
     const angle = (i/NUM_STREAMLINES) * Math.PI*2;
@@ -1650,34 +1593,10 @@ function buildHienLuanAnimation(root, colorHex){
     const startR = Math.sqrt(Math.max(0, BUBBLE_R*BUBBLE_R - startZ*startZ)) * 0.88; // wide -- close to the Bubble's inner wall
     streamSeeds.push({ startZ, startAngle: angle, startR, umbrellaAzimuth: angle, umbrellaSwirl: 0.45 });
   }
-  const streamPositions = new Float32Array(NUM_STREAMLINES*STREAM_SEGMENTS*3);
-  const streamColors = new Float32Array(NUM_STREAMLINES*STREAM_SEGMENTS*3);
-  const streamVec = new THREE.Vector3();
-  const tmpColorA = new THREE.Color();
-  streamSeeds.forEach((seed, si) => {
-    for (let j=0;j<STREAM_SEGMENTS;j++){
-      const s = j/(STREAM_SEGMENTS-1);
-      energyPointAt(s, seed, streamVec);
-      phaseColorAt(s, tmpColorA);
-      const base = (si*STREAM_SEGMENTS + j) * 3;
-      streamPositions[base] = streamVec.x; streamPositions[base+1] = streamVec.y; streamPositions[base+2] = streamVec.z;
-      streamColors[base] = tmpColorA.r; streamColors[base+1] = tmpColorA.g; streamColors[base+2] = tmpColorA.b;
-    }
-  });
-  const streamlineMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
-  for (let si=0; si<NUM_STREAMLINES; si++){
-    const geo = new THREE.BufferGeometry();
-    const posSlice = streamPositions.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
-    const colSlice = streamColors.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
-    geo.setAttribute('position', new THREE.BufferAttribute(posSlice, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(colSlice, 3));
-    const line = new THREE.Line(geo, streamlineMat);
-    group.add(line);
-  }
 
-  // ---- Flowing point particles: small glowing dots continuously traveling
-  // the full brown -> blue -> light path along each streamline, exactly
-  // like +TORUS_IN/+TORUS_OUT's flowing-particle technique.
+  // ---- Soft glow sprite used for BOTH the diffuse "cloud" particles and
+  // the brighter traveling particles, so rays read as fuzzy, larger-diameter
+  // streams of light particles rather than thin solid lines.
   function glowTexture(hex){
     const c = document.createElement('canvas'); c.width=64; c.height=64;
     const ctx = c.getContext('2d'); const g = ctx.createRadialGradient(32,32,0,32,32,32);
@@ -1685,6 +1604,47 @@ function buildHienLuanAnimation(root, colorHex){
     ctx.fillStyle=g; ctx.fillRect(0,0,64,64);
     return new THREE.CanvasTexture(c);
   }
+
+  // ---- Static "cloud" of many small, dim, jittered particles traced along
+  // each path -- this replaces the old thin solid Line streamlines with a
+  // wider, softer, larger-diameter ray made of a haze of light particles.
+  const CLOUD_PER_SEGMENT = 3;
+  const RAY_JITTER = 0.09; // radius of the fuzzy halo around the core path
+  const cloudTotal = NUM_STREAMLINES * STREAM_SEGMENTS * CLOUD_PER_SEGMENT;
+  const cloudPositions = new Float32Array(cloudTotal*3);
+  const cloudColors = new Float32Array(cloudTotal*3);
+  const streamVec = new THREE.Vector3();
+  const tmpColorA = new THREE.Color();
+  let cptr = 0;
+  streamSeeds.forEach((seed) => {
+    for (let j=0;j<STREAM_SEGMENTS;j++){
+      const s = j/(STREAM_SEGMENTS-1);
+      energyPointAt(s, seed, streamVec);
+      phaseColorAt(s, tmpColorA);
+      for (let k=0;k<CLOUD_PER_SEGMENT;k++){
+        const jx = (Math.random()-0.5)*2*RAY_JITTER;
+        const jy = (Math.random()-0.5)*2*RAY_JITTER;
+        const jz = (Math.random()-0.5)*2*RAY_JITTER;
+        const base = cptr*3;
+        cloudPositions[base] = streamVec.x + jx;
+        cloudPositions[base+1] = streamVec.y + jy;
+        cloudPositions[base+2] = streamVec.z + jz;
+        cloudColors[base] = tmpColorA.r; cloudColors[base+1] = tmpColorA.g; cloudColors[base+2] = tmpColorA.b;
+        cptr++;
+      }
+    }
+  });
+  const cloudGeo = new THREE.BufferGeometry();
+  cloudGeo.setAttribute('position', new THREE.BufferAttribute(cloudPositions, 3));
+  cloudGeo.setAttribute('color', new THREE.BufferAttribute(cloudColors, 3));
+  const cloudMat = new THREE.PointsMaterial({ size:0.16, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true });
+  const cloudPoints = new THREE.Points(cloudGeo, cloudMat);
+  group.add(cloudPoints);
+
+  // ---- Brighter, larger "core" particles continuously traveling the full
+  // brown -> blue -> white path along each streamline, exactly like
+  // +TORUS_IN/+TORUS_OUT's flowing-particle technique -- these sit inside
+  // the diffuse cloud above, giving each ray a bright core plus a soft halo.
   const PARTICLES_PER_STREAMLINE = 3;
   const totalParticles = NUM_STREAMLINES * PARTICLES_PER_STREAMLINE;
   const particlePositions = new Float32Array(totalParticles*3);
@@ -1692,11 +1652,15 @@ function buildHienLuanAnimation(root, colorHex){
   const particleGeo = new THREE.BufferGeometry();
   particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
   particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
-  const particleMat = new THREE.PointsMaterial({ size:0.1, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true });
+  const particleMat = new THREE.PointsMaterial({ size:0.17, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true });
   const particlePoints = new THREE.Points(particleGeo, particleMat);
   group.add(particlePoints);
 
-  const PARTICLE_LOOP_SECONDS = 3.6; // one full brown->blue->light pass per particle
+  const PARTICLE_LOOP_SECONDS = 3.6; // one full brown->blue->white pass per particle
+                                      // (S1/S2 above split this unevenly, so
+                                      // Section 1 ~1.8s [slow], Section 2
+                                      // ~1.2s [a bit faster], Section 3
+                                      // ~0.6s [fastest]).
   const STREAM_START = 0.4;          // energy stream begins shortly after SCA appears
   const STEP8_START = 10.0;          // (inert while STEP8_ENABLED = false)
   const STEP8_RAMP = 0.4;
@@ -1715,9 +1679,9 @@ function buildHienLuanAnimation(root, colorHex){
     // switched back on later without touching the rest of the sequence.
     if (STEP8_ENABLED) { /* intentionally left blank while disabled */ }
 
-    // Streamlines + flowing particles fade in alongside the energy stream.
+    // Cloud + core particles fade in alongside the energy stream.
     const streamFade = smooth(clamp01((t - STREAM_START) / 1.0));
-    streamlineMat.opacity = 0.5 * streamFade;
+    cloudMat.opacity = 0.55 * streamFade;
     particleMat.opacity = 0.95 * streamFade;
 
     if (t <= STREAM_START) { return; }
