@@ -1590,7 +1590,7 @@ function buildHienLuanAnimation(root, colorHex){
   const upperGlowColorAttr = new THREE.BufferAttribute(new Float32Array(stepVertexCount*3), 3);
   upperGlowGeo.setAttribute('color', upperGlowColorAttr);
   for (let i=0;i<stepVertexCount;i++){ const g = stepUpperWeight[i]; upperGlowColorAttr.setXYZ(i, g, g, g); }
-  const upperGlowMat = new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false });
+  const upperGlowMat = new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, side:THREE.FrontSide, blending:THREE.AdditiveBlending, depthWrite:false });
   const upperGlowMesh = new THREE.Mesh(upperGlowGeo, upperGlowMat);
   upperGlowMesh.renderOrder = 4;
   group.add(upperGlowMesh);
@@ -1602,7 +1602,7 @@ function buildHienLuanAnimation(root, colorHex){
   lowerDimGeo.setAttribute('color', lowerDimColorAttr);
   const DIM_TINT = new THREE.Color(0x160a24);
   for (let i=0;i<stepVertexCount;i++){ const g = 1 - stepUpperWeight[i]; lowerDimColorAttr.setXYZ(i, DIM_TINT.r*g, DIM_TINT.g*g, DIM_TINT.b*g); }
-  const lowerDimMat = new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, side:THREE.DoubleSide, depthWrite:false });
+  const lowerDimMat = new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, side:THREE.FrontSide, depthWrite:false });
   const lowerDimMesh = new THREE.Mesh(lowerDimGeo, lowerDimMat);
   lowerDimMesh.renderOrder = 4;
   group.add(lowerDimMesh);
@@ -1860,9 +1860,14 @@ function buildHienLuanAnimation(root, colorHex){
     // smoothly over the 5-second window starting at STEP8_START, then the
     // whole sequence resets (t wraps back to 0 via the % CYCLE above).
     if (STEP8_ENABLED) {
+      // step8P stays exactly 0 for the whole first STEP8_START seconds, so
+      // gating lowerDimMat.opacity on (t >= STEP8_START) ensures the dark
+      // shell is fully ABSENT the entire time beforehand -- it only ever
+      // appears right as the 5-second clearing transition begins, then
+      // fades to fully transparent by the time the transition completes.
       const step8P = smooth(clamp01((t - STEP8_START) / STEP8_DURATION));
       upperGlowMat.opacity = step8P * 0.75;
-      lowerDimMat.opacity = (1 - step8P) * 0.55;
+      lowerDimMat.opacity = (t >= STEP8_START) ? (1 - step8P) * 0.22 : 0;
     }
 
     // Streamlines + flowing particles fade in alongside the energy stream,
