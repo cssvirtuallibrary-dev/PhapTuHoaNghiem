@@ -1642,7 +1642,7 @@ function buildHienLuanAnimation(root, colorHex){
   // converging sweep and Section 3's crown burst both read as a full fan of
   // rays, while Section 2 collapses all of them onto one shared coil.
   const NUM_STREAMLINES = 12;
-  const STREAM_SEGMENTS = 120;
+  const STREAM_SEGMENTS = 480; // high resolution so the Section 2 coil (5 tight loops) renders as a smooth curve instead of visibly faceted/broken straight segments
   const streamSeeds = [];
   for (let i=0;i<NUM_STREAMLINES;i++){
     const angle = (i/NUM_STREAMLINES) * Math.PI*2;
