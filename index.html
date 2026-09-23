@@ -1695,33 +1695,35 @@ function buildHienLuanAnimation(root, colorHex){
   // automatically with a finite-difference (Catmull-Rom-style) formula --
   // m[i] = (key[i+1]-key[i-1]) / (t[i+1]-t[i-1]) -- which guarantees the
   // curve's direction matches exactly on both sides of every keyframe, so
-  // the whole path (crown rise -> arc up-and-out -> long cascade hugging
-  // the Bubble's inner wall) is ONE smooth, continuous, fountain-dome-like
-  // line, not separate pieces glued together.
-  // REDESIGNED per the reference side-view/top-view sketches: the ray now
-  // rises from the crown, arcs up-and-out to a wide peak (matching the
-  // side-view's broad rising arch), THEN -- instead of simply cascading
-  // straight down along the Bubble's inner wall as before -- it curls back
-  // INWARD near the end, closing back down toward a point close to the
-  // central axis (matching the side view's downward-curving finish, and
-  // the top view's loop that "curls around... back toward the center,
-  // ending in a pointed arrow-like shape beside the central square").
-  const HIENLUAN_BURST_BREAKS = [0.0, 0.22, 0.42, 0.62, 0.82, 1.0];
-  // (r, z) keyframes: crown -> trunk-top -> wide arc peak (rising &
-  // widening, out near the Bubble's inner surface) -> begins curling back
-  // inward -> continues hooking inward and downward -> ends near the
-  // central axis with a small, pointed radius (the "arrowhead" tip seen in
-  // the top-view sketch), rather than staying wide all the way down.
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.05, 0.60, 1.55, 1.35, 0.25];
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.35, TIP_Z+0.85, TIP_Z+0.30, TIP_Z-0.40, TIP_Z-0.80];
-  // Azimuthal "swirl" shape (unitless progress 0->1, later multiplied by
-  // 2*PI*seed.umbrellaSwirl below) -- almost no rotation during the initial
-  // rise/arc-up (matching the top-view sketch's mostly-straight opening
-  // stroke), then the swirl sharply increases through the cascade/hook
-  // phase, giving each ray the curling, spiral "loops around... back
-  // toward the center" look from directly above, instead of staying at a
-  // single fixed heading the whole time as before.
-  const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.0, 0.05, 0.30, 0.68, 1.0];
+  // the whole path is ONE smooth, continuous line, not separate pieces
+  // glued together.
+  //
+  // Section 3 shape, built fresh from the side-view + top-view reference
+  // markups (NOT an incremental tweak of any earlier version):
+  //   SIDE VIEW: a single broad rising arch -- the ray lifts off from the
+  //     crown, arcs up and outward to a peak, then comes back down toward
+  //     the Bubble's outer edge. No inward hook/loop at the end.
+  //   TOP VIEW: viewed from directly above, the ray starts right at the
+  //     center, curves smoothly toward one side, and continues outward
+  //     all the way to the edge of the circular field -- ending out at
+  //     the rim, NOT looping back toward the center.
+  const HIENLUAN_BURST_BREAKS = [0.0, 0.3, 0.62, 1.0];
+  // Cylindrical radius (distance from the vertical Z axis): starts at 0
+  // (dead center, matching the top view's starting point) and increases
+  // monotonically all the way out to near the Bubble's inner surface
+  // (radius ~1.95, safely under BUBBLE_R*0.985 ~= 2.07) -- it never turns
+  // back inward.
+  const HIENLUAN_BURST_R_KEYS = [0.0, 0.35, 1.05, 1.95];
+  // Height: rises from the crown, arcs up to a peak, then descends toward
+  // the outer edge -- one single broad arch, matching the side view.
+  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.55, TIP_Z+0.10, TIP_Z-0.55];
+  // Extra azimuthal curl (radians), added on top of each ray's own fixed,
+  // evenly-spaced starting heading (seed.umbrellaAzimuth). Increases
+  // monotonically from 0 up to ~2.1 rad (~120 degrees) -- a single,
+  // moderate curve toward one side as the ray travels outward, exactly
+  // matching the top view's "curves toward the right, continues to the
+  // edge" -- never doubling back over itself.
+  const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.35, 1.1, 2.1];
   function computeFiniteDiffTangents(keys, breaks){
     const n = keys.length;
     const m = new Array(n);
@@ -1780,33 +1782,25 @@ function buildHienLuanAnimation(root, colorHex){
       }
       x = r*Math.cos(angle); y = r*Math.sin(angle);
     } else {
-      // Section 3 (REDESIGNED to match the reference side-view/top-view
-      // sketches): ONE smooth, continuous cubic-Hermite spline through the
-      // crown-rise / arc-up-and-out / inward-curling-hook keyframes -- not
-      // separate piecewise-linear segments. The spline's tangent vector is
-      // shared at every interior keyframe (via the finite-difference
-      // tangents computed above), which guarantees the curve's direction
-      // matches exactly across each join -- a single unbroken, smooth
-      // line with no kinks or corners.
-      // NEW: the heading is no longer fixed for the whole burst -- an
-      // azimuthal "swirl" spline (HIENLUAN_BURST_THETA_KEYS) rotates each
-      // ray progressively around its own starting azimuth as it travels,
-      // concentrated in the later cascade/hook phase. Combined with the r
-      // keyframes curling back toward the central axis at the very end,
-      // every ray now spirals outward-and-over then curls back in on
-      // itself -- reproducing, from directly above, the sketch's "loops
-      // around... back toward the center, ending in a pointed arrow-like
-      // shape" -- rather than the previous fixed-heading straight rib.
-      // All rays trace this identical (r,z,swirl) curve -- only each ray's
-      // own starting azimuth (seed.umbrellaAzimuth) differs -- so together
-      // they form evenly spaced, perfectly smooth curling ribs of one
-      // shared umbrella sweep. Max radial distance stays safely inside
-      // BUBBLE_R*0.985.
+      // Section 3 -- fresh design built directly from the side-view / top-
+      // view reference markups: ONE smooth, continuous cubic-Hermite
+      // spline (r, z, and an extra azimuthal curl) through the crown-rise
+      // / arc-up-and-out / descend-to-the-edge keyframes. The spline's
+      // tangent vector is shared at every interior keyframe (via the
+      // finite-difference tangents computed above), guaranteeing the
+      // curve's direction matches exactly across each join -- a single
+      // unbroken, smooth line with no kinks or corners.
+      // Each of the 9 rays starts at its own fixed, evenly-spaced heading
+      // (seed.umbrellaAzimuth), then curls by the SAME extra swirl amount
+      // (thetaOffset) as it travels outward -- so from directly above,
+      // every ray sweeps smoothly from the center out toward the rim,
+      // curving to one side along the way, exactly like the top-view
+      // markup -- and never loops back toward the center.
       const p = (s-S2)/(1-S2);
       const r = hermiteSpline1D(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_R_TANGENTS, HIENLUAN_BURST_BREAKS, p);
       const zSpline = hermiteSpline1D(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_Z_TANGENTS, HIENLUAN_BURST_BREAKS, p);
-      const thetaShape = hermiteSpline1D(HIENLUAN_BURST_THETA_KEYS, HIENLUAN_BURST_THETA_TANGENTS, HIENLUAN_BURST_BREAKS, p);
-      const finalAngle = seed.umbrellaAzimuth + thetaShape * seed.umbrellaSwirl * Math.PI * 2;
+      const thetaOffset = hermiteSpline1D(HIENLUAN_BURST_THETA_KEYS, HIENLUAN_BURST_THETA_TANGENTS, HIENLUAN_BURST_BREAKS, p);
+      const finalAngle = seed.umbrellaAzimuth + thetaOffset;
       x = Math.max(0, r)*Math.cos(finalAngle);
       y = Math.max(0, r)*Math.sin(finalAngle);
       z = zSpline;
