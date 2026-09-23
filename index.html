@@ -1539,19 +1539,32 @@ function buildHienLuanAnimation(root, colorHex){
 
   // ---- Shared cubic-Hermite spline helper + Section 3 burst keyframes.
   // Standard Hermite basis (h00,h10,h01,h11) evaluated per-segment with a
-  // LOCAL u in [0,1]; because the tangent value at each interior keyframe
-  // is reused as both the outgoing tangent of the segment before it and
-  // the incoming tangent of the segment after it, the resulting curve's
-  // direction is guaranteed continuous across every join -- i.e. one
-  // single smooth line, not three separate pieces glued together.
-  const HIENLUAN_BURST_BREAKS = [0.0, 0.32, 0.62, 1.0];
-  // (r, z) keyframes: crown -> trunk-top -> arc peak (up & out) -> cascade end (near Bubble wall)
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.03, 0.55, BUBBLE_R*0.885];
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.35, TIP_Z+0.85, TIP_Z-0.68];
-  // Shared tangent vectors at each keyframe (dr, dz) -- reused across
-  // adjacent segments to guarantee smooth (no-kink) joins.
-  const HIENLUAN_BURST_R_TANGENTS = [0.12, 0.55, 1.3, 1.0];
-  const HIENLUAN_BURST_Z_TANGENTS = [1.0, 0.9, -0.3, -0.9];
+  // LOCAL u in [0,1]. Tangents at every interior keyframe are computed
+  // automatically with a finite-difference (Catmull-Rom-style) formula --
+  // m[i] = (key[i+1]-key[i-1]) / (t[i+1]-t[i-1]) -- which guarantees the
+  // curve's direction matches exactly on both sides of every keyframe, so
+  // the whole path (crown rise -> arc up-and-out -> long cascade hugging
+  // the Bubble's inner wall) is ONE smooth, continuous, fountain-dome-like
+  // line, not separate pieces glued together.
+  const HIENLUAN_BURST_BREAKS = [0.0, 0.28, 0.48, 0.68, 0.85, 1.0];
+  // (r, z) keyframes: crown -> trunk-top -> arc peak (rising & widening) ->
+  // two cascade keyframes that stay close to the Bubble's inner surface
+  // (radius ~1.92-1.99, safely under BUBBLE_R*0.985 ~= 2.07) -> cascade end.
+  // This long, sphere-hugging run through the last 3 keyframes is what
+  // gives the "water fountain umbrella dome" look -- the rays curve over
+  // and then closely trace the dome's curvature on the way down.
+  const HIENLUAN_BURST_R_KEYS = [0.0, 0.03, 0.55, 1.45, 1.85, 1.90];
+  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.32, TIP_Z+0.82, TIP_Z+0.35, TIP_Z-0.35, TIP_Z-0.75];
+  function computeFiniteDiffTangents(keys, breaks){
+    const n = keys.length;
+    const m = new Array(n);
+    m[0] = (keys[1]-keys[0]) / (breaks[1]-breaks[0]);
+    m[n-1] = (keys[n-1]-keys[n-2]) / (breaks[n-1]-breaks[n-2]);
+    for (let i=1;i<n-1;i++){ m[i] = (keys[i+1]-keys[i-1]) / (breaks[i+1]-breaks[i-1]); }
+    return m;
+  }
+  const HIENLUAN_BURST_R_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_BREAKS);
+  const HIENLUAN_BURST_Z_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_BREAKS);
   function hermiteSpline1D(keys, tangents, breaks, p){
     const n = breaks.length - 1;
     let segIdx = n - 1;
