@@ -1128,8 +1128,12 @@ const SIDDHAM_ASPECT = { YA: 135/160, SA: 141/160, VA: 124/160 }; // width/heigh
 // encodeURI()-escaped variant, for filenames containing diacritics such as
 // "Ś") -- exactly the same "shared external file, multiple source
 // candidates" pattern already used for hoa+sen.stl below.
+// SCA's confirmed real filename is "40_SHCA_Gold.PNG" (tried first below).
+// The earlier "40_ŚCA_Gold.PNG" / "40_SCA_Gold.PNG" guesses are kept as
+// lower-priority fallback candidates only -- harmless if unused, but kept
+// in case a differently-cased/accented copy also happens to exist.
 const SIDDHAM_FILE_CANDIDATES = {
-  SCA: ['40_ŚCA_Gold.PNG', encodeURI('40_ŚCA_Gold.PNG')],
+  SCA: ['40_SHCA_Gold.PNG', encodeURI('40_SHCA_Gold.PNG'), '40_ŚCA_Gold.PNG', encodeURI('40_ŚCA_Gold.PNG'), '40_SCA_Gold.PNG', encodeURI('40_SCA_Gold.PNG')],
   BA:  ['08_BA_Gold.PNG', encodeURI('08_BA_Gold.PNG')],
   DA:  ['07_DA_Gold.PNG', encodeURI('07_DA_Gold.PNG')],
   YA:  ['13_YA_Gold.PNG', encodeURI('13_YA_Gold.PNG')],
@@ -1626,13 +1630,13 @@ function buildHienLuanAnimation(root, colorHex){
   //                         (Z=1, r=0) -- not at Z=0 -- then fans out into
   //                         12 distinct rays sweeping down across the
   //                         upper Bubble in one smooth dome.
-  const BROWN_COLOR = new THREE.Color(0x3d2410);               // darkest -- raw, unconverted energy (Section 1, slowest)
-  const BLUE_COLOR  = new THREE.Color(0x7fe0ff);                // lighter cyan-blue -- energy mid-transformation (Section 2, a bit faster)
+  const BROWN_COLOR   = new THREE.Color(0x3d2410);              // darkest -- raw, unconverted energy (Section 1, slowest)
+  const SECTION2_COLOR = new THREE.Color(0x35ff8a);              // vivid GREEN -- energy mid-transformation (Section 2, a bit faster)
   const LIGHT_COLOR = new THREE.Color(colorHex || '#ffe9a8').lerp(new THREE.Color(0xffffff), 0.88); // brightest near-white -- fully transformed light (Section 3, fastest)
   // Time allocation across one particle loop also controls perceived SPEED:
   // Section 1 gets the largest share (slowest), Section 2 a bit less (a
   // bit faster), Section 3 the smallest share (fastest).
-  const S1 = 0.50, S2 = 0.8333; // phase boundaries: brown converge (50%, slow) | blue conch spiral (~33%, faster) | light dome burst (~17%, fastest)
+  const S1 = 0.50, S2 = 0.8333; // phase boundaries: brown converge (50%, slow) | green conch spiral (~33%, faster) | light dome burst (~17%, fastest)
   const BLEND_BAND = 0.05;    // soft crossfade width at each phase boundary
   const CONVERGE_TURNS = 0.6; // wide, low sweep -- well under one full turn
   const CONCH_TOTAL_TURNS = 5;      // 1 widening loop + 4 narrowing loops
@@ -1652,11 +1656,14 @@ function buildHienLuanAnimation(root, colorHex){
   function brightenColor(c, k){ c.r = Math.min(1, c.r*k); c.g = Math.min(1, c.g*k); c.b = Math.min(1, c.b*k); }
   function phaseColorAt(s, outColor){
     if (s < S1 - BLEND_BAND) { outColor.copy(BROWN_COLOR); brightenColor(outColor, BRIGHTNESS_SECTION1); return; }
-    if (s < S1 + BLEND_BAND) { const k=(s-(S1-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(BROWN_COLOR).lerp(BLUE_COLOR, k); brightenColor(outColor, BRIGHTNESS_SECTION1 + (BRIGHTNESS_SECTION2-BRIGHTNESS_SECTION1)*k); return; }
-    if (s < S2 - BLEND_BAND) { outColor.copy(BLUE_COLOR); brightenColor(outColor, BRIGHTNESS_SECTION2); return; }
-    if (s < S2 + BLEND_BAND) { const k=(s-(S2-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(BLUE_COLOR).lerp(LIGHT_COLOR, k); brightenColor(outColor, BRIGHTNESS_SECTION2 + (BRIGHTNESS_SECTION3-BRIGHTNESS_SECTION2)*k); return; }
+    if (s < S1 + BLEND_BAND) { const k=(s-(S1-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(BROWN_COLOR).lerp(SECTION2_COLOR, k); brightenColor(outColor, BRIGHTNESS_SECTION1 + (BRIGHTNESS_SECTION2-BRIGHTNESS_SECTION1)*k); return; }
+    if (s < S2 - BLEND_BAND) { outColor.copy(SECTION2_COLOR); brightenColor(outColor, BRIGHTNESS_SECTION2); return; }
+    if (s < S2 + BLEND_BAND) { const k=(s-(S2-BLEND_BAND))/(2*BLEND_BAND); outColor.copy(SECTION2_COLOR).lerp(LIGHT_COLOR, k); brightenColor(outColor, BRIGHTNESS_SECTION2 + (BRIGHTNESS_SECTION3-BRIGHTNESS_SECTION2)*k); return; }
     outColor.copy(LIGHT_COLOR); brightenColor(outColor, BRIGHTNESS_SECTION3);
   }
+  // Which of the 3 sections (0, 1, 2) a given phase position s belongs to --
+  // used to gate each section's staged reveal below.
+  function sectionIndexOf(s){ return s < S1 ? 0 : (s < S2 ? 1 : 2); }
 
   // ---- Shared cubic-Hermite spline helper + Section 3 burst keyframes.
   // Standard Hermite basis (h00,h10,h01,h11) evaluated per-segment with a
@@ -1757,11 +1764,12 @@ function buildHienLuanAnimation(root, colorHex){
     outVec.set(x, y, z);
   }
 
-  // ---- Streamlines (static full paths, colored per-section) -- the
-  // "TORUS" visual language: thin, glowing, additively-blended lines
-  // tracing the whole flow. 12 lines total (up from 6) so Section 1's wide
-  // converging sweep and Section 3's crown burst both read as a full fan of
-  // rays, while Section 2 collapses all of them onto one shared coil.
+  // ---- Streamlines (static full paths, colored per-section), now split
+  // into 3 SEPARATE per-section line objects (rather than one continuous
+  // line per streamline) so each section can be staged in on its own
+  // timeline -- Section 1 pulls energy toward the center first, THEN (after
+  // a pause) Section 2 animates, THEN (after another pause) Section 3
+  // bursts -- instead of all 3 sections appearing simultaneously.
   const NUM_STREAMLINES = 12;
   const STREAM_SEGMENTS = 480; // high resolution so the Section 2 coil (5 tight loops) renders as a smooth curve instead of visibly faceted/broken straight segments
   const streamSeeds = [];
@@ -1785,40 +1793,57 @@ function buildHienLuanAnimation(root, colorHex){
       streamColors[base] = tmpColorA.r; streamColors[base+1] = tmpColorA.g; streamColors[base+2] = tmpColorA.b;
     }
   });
-  const streamlineMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
-  // A second, dimmer "halo" material/line-set drawn alongside each core
-  // streamline visually thickens every ray (LineBasicMaterial's linewidth
-  // is unsupported cross-browser in WebGL, so this duplication is the
-  // reliable way to make the rays read as wider, more visible bands).
-  const streamlineHaloMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
+  // 3 independent materials (+ 3 halo materials), one per section, so each
+  // section's opacity can be driven on its own staged timeline below.
+  const sectionLineMats = [0,1,2].map(() => new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
+  const sectionHaloMats = [0,1,2].map(() => new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
+  // A second, dimmer "halo" line-set drawn alongside each core streamline
+  // visually thickens every ray (LineBasicMaterial's linewidth is
+  // unsupported cross-browser in WebGL, so this duplication is the reliable
+  // way to make the rays read as wider, more visible bands).
   const haloOffsets = [
     new THREE.Vector3(0.028,0.028,0), new THREE.Vector3(-0.028,-0.028,0),
     new THREE.Vector3(0,0.028,0.028), new THREE.Vector3(0,-0.028,-0.028),
     new THREE.Vector3(0.028,0,-0.028)
   ];
+  // Index boundaries (inclusive on both ends of each segment, so the 3
+  // per-section lines still touch with no visible gap between them).
+  const idxS1 = Math.round(S1 * (STREAM_SEGMENTS-1));
+  const idxS2 = Math.round(S2 * (STREAM_SEGMENTS-1));
+  const SECTION_RANGES = [ [0, idxS1], [idxS1, idxS2], [idxS2, STREAM_SEGMENTS-1] ];
   for (let si=0; si<NUM_STREAMLINES; si++){
-    const posSlice = streamPositions.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
-    const colSlice = streamColors.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(posSlice, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(colSlice, 3));
-    const line = new THREE.Line(geo, streamlineMat);
-    group.add(line);
+    const fullPos = streamPositions.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
+    const fullCol = streamColors.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
+    SECTION_RANGES.forEach(([lo, hi], sectionIdx) => {
+      const count = hi - lo + 1;
+      const posSlice = fullPos.slice(lo*3, (hi+1)*3);
+      const colSlice = fullCol.slice(lo*3, (hi+1)*3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(posSlice, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(colSlice, 3));
+      const line = new THREE.Line(geo, sectionLineMats[sectionIdx]);
+      group.add(line);
 
-    haloOffsets.forEach(off => {
-      const haloPos = posSlice.slice();
-      for (let j=0;j<STREAM_SEGMENTS;j++){ haloPos[j*3]+=off.x; haloPos[j*3+1]+=off.y; haloPos[j*3+2]+=off.z; }
-      const haloGeo = new THREE.BufferGeometry();
-      haloGeo.setAttribute('position', new THREE.BufferAttribute(haloPos, 3));
-      haloGeo.setAttribute('color', new THREE.BufferAttribute(colSlice.slice(), 3));
-      const haloLine = new THREE.Line(haloGeo, streamlineHaloMat);
-      group.add(haloLine);
+      haloOffsets.forEach(off => {
+        const haloPos = posSlice.slice();
+        for (let j=0;j<count;j++){ haloPos[j*3]+=off.x; haloPos[j*3+1]+=off.y; haloPos[j*3+2]+=off.z; }
+        const haloGeo = new THREE.BufferGeometry();
+        haloGeo.setAttribute('position', new THREE.BufferAttribute(haloPos, 3));
+        haloGeo.setAttribute('color', new THREE.BufferAttribute(colSlice.slice(), 3));
+        const haloLine = new THREE.Line(haloGeo, sectionHaloMats[sectionIdx]);
+        group.add(haloLine);
+      });
     });
   }
 
   // ---- Flowing point particles: small glowing dots continuously traveling
-  // the full brown -> blue -> light path along each streamline, exactly
-  // like +TORUS_IN/+TORUS_OUT's flowing-particle technique.
+  // the full brown -> green -> light path along each streamline, exactly
+  // like +TORUS_IN/+TORUS_OUT's flowing-particle technique. Particles
+  // currently positioned within a not-yet-revealed section are hidden by
+  // zeroing their color (additive blending means black == invisible),
+  // rather than by any geometry/visibility toggle -- so the SAME staged
+  // reveal timeline governs both the static streamlines and these moving
+  // particles automatically.
   function glowTexture(hex){
     const c = document.createElement('canvas'); c.width=64; c.height=64;
     const ctx = c.getContext('2d'); const g = ctx.createRadialGradient(32,32,0,32,32,32);
@@ -1837,23 +1862,42 @@ function buildHienLuanAnimation(root, colorHex){
   const particlePoints = new THREE.Points(particleGeo, particleMat);
   group.add(particlePoints);
 
-  const PARTICLE_LOOP_SECONDS = 3.6; // one full brown->blue->white pass per particle
+  const PARTICLE_LOOP_SECONDS = 3.6; // one full brown->green->white pass per particle
                                       // (S1/S2 above split this unevenly, so
                                       // Section 1 ~1.8s [slow], Section 2
                                       // ~1.2s [a bit faster], Section 3
                                       // ~0.6s [fastest]).
-  const STREAM_START = 0.4;          // energy stream begins shortly after SCA appears
-  const STEP8_START = 10.0;          // Step 8 (Bubble brighten/fade) begins ~10s in
+
+  // ---- Staged reveal timeline: SCA appears at the heart-origin first;
+  // shortly after, Section 1 begins pulling energy in toward (0,0,0);
+  // after a brief pause, Section 2 (now green) animates; after another
+  // brief pause, Section 3 bursts from the crown -- matching the pacing
+  // style already used by +LOTUS_SEQUENCE / +HIEN_LUAN's own staged steps.
+  const SCA_FADE_DURATION  = 1.0;  // SCA glyph fade-in time
+  const SECTION_FADE       = 0.9;  // each section's own fade-in time once its turn arrives
+  const SECTION_GAP        = 1.0;  // pause between one section finishing its fade-in and the next one starting
+  const SECTION1_START = SCA_FADE_DURATION + 0.3;                          // Section 1 starts shortly after SCA is visible
+  const SECTION2_START = SECTION1_START + SECTION_FADE + SECTION_GAP;      // Section 2 starts after a pause
+  const SECTION3_START = SECTION2_START + SECTION_FADE + SECTION_GAP;      // Section 3 starts after another pause
+  const SECTION_STARTS = [SECTION1_START, SECTION2_START, SECTION3_START];
+
+  const STEP8_START = 10.0;          // Step 8 (Bubble brighten/fade) begins ~10s in -- well after all 3 sections have fully revealed
   const STEP8_DURATION = 5.0;        // the brighten/fade transition lasts 5 seconds
   const CYCLE = STEP8_START + STEP8_DURATION; // 15s total -- the whole sequence resets right after Step 8 finishes
 
   const tmpColorB = new THREE.Color();
 
+  // Per-section fade-in progress (0..1) at a given absolute time t.
+  function sectionRevealAt(sectionIdx, t){
+    return smooth(clamp01((t - SECTION_STARTS[sectionIdx]) / SECTION_FADE));
+  }
+
   function update(elapsedRaw){
     const t = elapsedRaw % CYCLE;
 
-    // SCA glyph fades in at the very start of every loop.
-    scaSprite.material.opacity = smooth(clamp01(t/1.0));
+    // SCA glyph fades in at the very start of every loop, at the exact
+    // heart-origin (0,0,0).
+    scaSprite.material.opacity = smooth(clamp01(t/SCA_FADE_DURATION));
 
     // Step 8: upper Bubble slowly turns whiter (light switching on) while
     // the lower Bubble's darkness fades into transparency -- both eased
@@ -1870,25 +1914,33 @@ function buildHienLuanAnimation(root, colorHex){
       lowerDimMat.opacity = (t >= STEP8_START) ? (1 - step8P) * 0.22 : 0;
     }
 
-    // Streamlines + flowing particles fade in alongside the energy stream,
-    // now brightened significantly for clearer visibility in all 3 sections.
-    const streamFade = smooth(clamp01((t - STREAM_START) / 1.0));
-    streamlineMat.opacity = 1.0 * streamFade;
-    streamlineHaloMat.opacity = 0.65 * streamFade;
-    particleMat.opacity = 1.0 * streamFade;
+    // Each section's streamlines + halo fade in independently, staged one
+    // after another: Section 1 (brown, pulling toward center) first, then
+    // (after a pause) Section 2 (green), then (after another pause)
+    // Section 3 (bright burst).
+    for (let i=0;i<3;i++){
+      const reveal = sectionRevealAt(i, t);
+      sectionLineMats[i].opacity = 1.0 * reveal;
+      sectionHaloMats[i].opacity = 0.65 * reveal;
+    }
+    particleMat.opacity = sectionRevealAt(0, t); // particles turn on as soon as Section 1 begins; individual particles beyond an unrevealed section are hidden via zeroed color below
 
-    if (t <= STREAM_START) { return; }
-    const activeT = t - STREAM_START;
+    if (t <= SECTION1_START) { return; }
 
     let ptr = 0;
     for (let si=0; si<NUM_STREAMLINES; si++){
       const seed = streamSeeds[si];
       for (let p=0; p<PARTICLES_PER_STREAMLINE; p++){
         const basePhase = p / PARTICLES_PER_STREAMLINE;
-        const localT = (activeT + basePhase*PARTICLE_LOOP_SECONDS) % PARTICLE_LOOP_SECONDS;
+        const localT = (t + basePhase*PARTICLE_LOOP_SECONDS) % PARTICLE_LOOP_SECONDS;
         const s = localT / PARTICLE_LOOP_SECONDS;
         energyPointAt(s, seed, streamVec);
         phaseColorAt(s, tmpColorB);
+        // Hide this particle (zero it out -- invisible under additive
+        // blending) if the section it currently occupies hasn't been
+        // revealed yet at this point in the staged timeline.
+        const reveal = sectionRevealAt(sectionIndexOf(s), t);
+        tmpColorB.multiplyScalar(reveal);
         const base = ptr*3;
         particlePositions[base] = streamVec.x; particlePositions[base+1] = streamVec.y; particlePositions[base+2] = streamVec.z;
         particleColors[base] = tmpColorB.r; particleColors[base+1] = tmpColorB.g; particleColors[base+2] = tmpColorB.b;
