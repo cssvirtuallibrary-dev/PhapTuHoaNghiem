@@ -1636,7 +1636,19 @@ function buildHienLuanAnimation(root, colorHex){
   // Time allocation across one particle loop also controls perceived SPEED:
   // Section 1 gets the largest share (slowest), Section 2 a bit less (a
   // bit faster), Section 3 the smallest share (fastest).
-  const S1 = 0.50, S2 = 0.8333; // phase boundaries: brown converge (50%, slow) | green conch spiral (~33%, faster) | light dome burst (~17%, fastest)
+  // Phase boundaries recalibrated so all 3 sections' particles travel at
+  // the SAME real-world speed (matched to Section 1's speed, which was
+  // the slowest of the 3) instead of each section getting an even 1/3-ish
+  // share of a fixed total loop time regardless of how much physical
+  // distance it actually covers. Measured average path lengths: Section 1
+  // (brown converge) ~4.76 units, Section 2 (green conch spiral) ~9.79
+  // units, Section 3 (light dome burst) ~3.33 units. At the OLD boundaries
+  // (S1=0.50, S2=0.8333 -- i.e. even/fixed time shares of 1.8s/1.2s/0.6s)
+  // that worked out to speeds of ~2.64 / ~8.16 / ~5.54 units/sec --
+  // Section 2 and 3 both moved much faster than Section 1. Rescaling the
+  // boundaries below (and PARTICLE_LOOP_SECONDS) makes every section's
+  // particles move at Section 1's original ~2.64 units/sec.
+  const S1 = 0.2663, S2 = 0.8140; // recalibrated for equal particle speed across all 3 sections (see note above)
   const BLEND_BAND = 0.05;    // soft crossfade width at each phase boundary
   const CONVERGE_TURNS = 0.6; // wide, low sweep -- well under one full turn
   const CONCH_TOTAL_TURNS = 5;      // 1 widening loop + 4 narrowing loops
@@ -1873,11 +1885,13 @@ function buildHienLuanAnimation(root, colorHex){
   const particlePoints = new THREE.Points(particleGeo, particleMat);
   group.add(particlePoints);
 
-  const PARTICLE_LOOP_SECONDS = 3.6; // one full brown->green->white pass per particle
-                                      // (S1/S2 above split this unevenly, so
-                                      // Section 1 ~1.8s [slow], Section 2
-                                      // ~1.2s [a bit faster], Section 3
-                                      // ~0.6s [fastest]).
+  const PARTICLE_LOOP_SECONDS = 6.76; // one full brown->green->white pass per particle.
+                                       // With the recalibrated S1/S2 above, every section
+                                       // now gets exactly the wall-clock time its own path
+                                       // length requires to move at the SAME speed as
+                                       // Section 1 (the slowest section): Section 1 ~1.80s,
+                                       // Section 2 ~3.70s, Section 3 ~1.26s -- no more
+                                       // visibly faster/slower sections.
 
   // ---- Staged reveal timeline: SCA appears at the heart-origin first;
   // shortly after, Section 1 begins pulling energy in toward (0,0,0);
