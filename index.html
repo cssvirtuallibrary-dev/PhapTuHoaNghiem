@@ -1805,66 +1805,27 @@ function buildHienLuanAnimation(root, colorHex){
       streamColors[base] = tmpColorA.r; streamColors[base+1] = tmpColorA.g; streamColors[base+2] = tmpColorA.b;
     }
   });
-  // Builds ONE solid tube mesh (not a bundle of separate offset lines) by
-  // extruding a small ring of vertices around each sampled point. The ring
-  // frame is parallel-transported from one point to the next (each new
-  // normal is the previous normal re-projected orthogonal to the new
-  // tangent), which keeps the tube from visibly twisting along a curving
-  // path. Every vertex in a given ring shares that point's phase color, so
-  // the whole tube reads as one continuous, solid, correctly-colored
-  // strand -- not several thin parallel threads.
-  function buildColoredTubeGeometry(posArr, colArr, radius, radialSegments){
-    const count = posArr.length/3;
-    const pts = new Array(count);
-    for (let i=0;i<count;i++) pts[i] = new THREE.Vector3(posArr[i*3], posArr[i*3+1], posArr[i*3+2]);
-    const tangents = new Array(count);
-    for (let i=0;i<count;i++){
-      const a = pts[Math.max(0,i-1)], b = pts[Math.min(count-1,i+1)];
-      tangents[i] = b.clone().sub(a).normalize();
-    }
-    const normals = new Array(count), binormals = new Array(count);
-    let seed = new THREE.Vector3(0,0,1);
-    if (Math.abs(tangents[0].dot(seed)) > 0.9) seed = new THREE.Vector3(1,0,0);
-    normals[0] = seed.clone().sub(tangents[0].clone().multiplyScalar(tangents[0].dot(seed))).normalize();
-    binormals[0] = new THREE.Vector3().crossVectors(tangents[0], normals[0]).normalize();
-    for (let i=1;i<count;i++){
-      let n = normals[i-1].clone().sub(tangents[i].clone().multiplyScalar(tangents[i].dot(normals[i-1])));
-      if (n.lengthSq() < 1e-8) n = binormals[i-1].clone();
-      n.normalize();
-      normals[i] = n;
-      binormals[i] = new THREE.Vector3().crossVectors(tangents[i], n).normalize();
-    }
-    const positions = [], colors = [];
-    for (let i=0;i<count;i++){
-      for (let j=0;j<=radialSegments;j++){
-        const theta = (j/radialSegments) * Math.PI * 2;
-        const off = normals[i].clone().multiplyScalar(Math.cos(theta)*radius).add(binormals[i].clone().multiplyScalar(Math.sin(theta)*radius));
-        const v = pts[i].clone().add(off);
-        positions.push(v.x, v.y, v.z);
-        colors.push(colArr[i*3], colArr[i*3+1], colArr[i*3+2]);
-      }
-    }
-    const indices = [];
-    for (let i=0;i<count-1;i++){
-      for (let j=0;j<radialSegments;j++){
-        const a = i*(radialSegments+1)+j, b = a+radialSegments+1, c = b+1, d = a+1;
-        indices.push(a,b,d, b,c,d);
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geo.setIndex(indices);
-    return geo;
-  }
-  // 3 independent materials, one per section, so each section's opacity can
-  // be driven on its own staged timeline below. MeshBasicMaterial (not
-  // LineBasicMaterial) since these are now real solid tube meshes.
-  const sectionTubeMats = [0,1,2].map(() => new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide }));
-  const STRAND_RADIUS = 0.045; // a single thick strand's radius (replacing the old multi-line-bundle "halo" trick)
-  const STRAND_RADIAL_SEGMENTS = 7;
-  // Index boundaries (inclusive on both ends of each segment, so the 3
-  // per-section tubes still touch with no visible gap between them).
+  // ---- ROOT CAUSE of both the "spaghetti tangle" AND Section 2 reading as
+  // white instead of green: Section 2's path formula intentionally IGNORES
+  // each streamline's individual seed (angle/azimuth) so all 12 rays
+  // collapse onto ONE shared coil -- but the old code still built and drew
+  // all 12 of those perfectly-identical, perfectly-overlapping copies. With
+  // ADDITIVE blending, stacking 12 identical bright-green lines exactly on
+  // top of each other sums their color 12x over -- green (0.21,1,0.54)
+  // adds up almost immediately to pure white well before all 12 layers are
+  // even drawn, and the many exactly-overlapping/near-numerically-identical
+  // vertices produced the tangled, twisted "spaghetti" look in the tube
+  // experiment. Fix: Section 2 is now built and drawn exactly ONCE (not 12
+  // times) -- it was always meant to look like a single strand.
+  // Also reverting away from the earlier solid-tube-mesh experiment (which
+  // introduced its own extrusion/frame artifacts, especially near the
+  // sharp convergence point where Section 1's 12 rays pinch down toward
+  // r=0) back to simple, robust THREE.Line rendering: ONE clean line per
+  // section per ray (no parallel offset "halo" duplicates either, which
+  // is what caused the earlier "multi-strand" look) -- thickness is instead
+  // conveyed by the large, bright, glowing flow particles traveling along
+  // each line (see PARTICLES_PER_STREAMLINE / particle size below).
+  const sectionLineMats = [0,1,2].map(() => new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, linewidth:2 }));
   const idxS1 = Math.round(S1 * (STREAM_SEGMENTS-1));
   const idxS2 = Math.round(S2 * (STREAM_SEGMENTS-1));
   const SECTION_RANGES = [ [0, idxS1], [idxS1, idxS2], [idxS2, STREAM_SEGMENTS-1] ];
@@ -1872,11 +1833,17 @@ function buildHienLuanAnimation(root, colorHex){
     const fullPos = streamPositions.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
     const fullCol = streamColors.slice(si*STREAM_SEGMENTS*3, (si+1)*STREAM_SEGMENTS*3);
     SECTION_RANGES.forEach(([lo, hi], sectionIdx) => {
+      // Section 2 (index 1) is IDENTICAL for every streamline (its formula
+      // ignores the per-seed azimuth by design) -- so only build it once,
+      // from si===0, instead of drawing 12 perfectly-overlapping copies.
+      if (sectionIdx === 1 && si !== 0) return;
       const posSlice = fullPos.slice(lo*3, (hi+1)*3);
       const colSlice = fullCol.slice(lo*3, (hi+1)*3);
-      const tubeGeo = buildColoredTubeGeometry(posSlice, colSlice, STRAND_RADIUS, STRAND_RADIAL_SEGMENTS);
-      const tubeMesh = new THREE.Mesh(tubeGeo, sectionTubeMats[sectionIdx]);
-      group.add(tubeMesh);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(posSlice, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(colSlice, 3));
+      const line = new THREE.Line(geo, sectionLineMats[sectionIdx]);
+      group.add(line);
     });
   }
 
@@ -1902,7 +1869,7 @@ function buildHienLuanAnimation(root, colorHex){
   const particleGeo = new THREE.BufferGeometry();
   particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
   particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
-  const particleMat = new THREE.PointsMaterial({ size:0.34, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true }); // bigger glowing flow-balls, easier to track along the strand
+  const particleMat = new THREE.PointsMaterial({ size:0.4, map:glowTexture('#ffe9a8'), vertexColors:true, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true }); // bigger glowing flow-balls -- the primary way the energy flow reads clearly now
   const particlePoints = new THREE.Points(particleGeo, particleMat);
   group.add(particlePoints);
 
@@ -1958,12 +1925,13 @@ function buildHienLuanAnimation(root, colorHex){
       lowerDimMat.opacity = (t >= STEP8_START) ? (1 - step8P) * 0.22 : 0;
     }
 
-    // Each section's solid strand tube fades in independently, staged one
-    // after another: Section 1 (brown, pulling toward center) first, then
-    // (after a pause) Section 2 (green), then (after another pause)
-    // Section 3 (bright burst).
+    // Each section's streamline fades in independently, staged one after
+    // another: Section 1 (brown, pulling toward center) first, then (after
+    // a pause) Section 2 (green, now drawn as a single clean strand rather
+    // than 12 overlapping copies), then (after another pause) Section 3
+    // (bright burst).
     for (let i=0;i<3;i++){
-      sectionTubeMats[i].opacity = 0.95 * sectionRevealAt(i, t);
+      sectionLineMats[i].opacity = 1.0 * sectionRevealAt(i, t);
     }
     particleMat.opacity = sectionRevealAt(0, t); // particles turn on as soon as Section 1 begins; individual particles beyond an unrevealed section are hidden via zeroed color below
 
