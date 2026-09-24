@@ -1707,31 +1707,32 @@ function buildHienLuanAnimation(root, colorHex){
   //     center, curves smoothly toward one side, and continues outward
   //     all the way to the edge of the circular field -- ending out at
   //     the rim, NOT looping back toward the center.
-  // Reverted the 30% shortening back to full size (per request), then
-  // rebuilt the DESCENT (the 3 keyframes after the peak) as the simplest
-  // possible "slide down the inside of the bubble" path: each descent
-  // keyframe's height is solved directly from the sphere equation
-  // r^2 + z^2 = Reff^2 (Reff computed from the peak point itself), so the
-  // 3 points fall EXACTLY on the same sphere the peak sits on -- the
-  // simplest, most natural curve tracing the Bubble's own inner surface,
-  // with no extra bends or hand-tuned approximation. The rise/shoulder/
-  // peak keyframes are unchanged (restored to full size). The azimuthal
-  // curl is replaced with a much GENTLER, smoothly-and-evenly-distributed
-  // twist (total ~0.6 rad / ~34 degrees, vs. the previous ~2.1 rad / 120
-  // degrees concentrated late in the path) -- enough to read as a soft,
-  // natural curl rather than an over-wound spiral.
+  // Spiral REMOVED entirely per request (theta keys below are now all
+  // zero -- rays keep their own fixed, evenly-spaced heading the whole
+  // time, no twist at all). The peak was also made LESS pronounced
+  // (shoulder rise now tops out around TIP_Z+0.50 instead of +0.95) so
+  // that from the peak onward, EVERY remaining keyframe (peak included)
+  // lies on the exact same single sphere (r^2 + z^2 = Reff^2, Reff=1.75,
+  // matching the ray's final reach) -- meaning the whole post-shoulder
+  // portion of the path is nothing more than one simple, natural arc
+  // sliding along the Bubble's own inner curve, with no separate
+  // "peak then descend" bend at all: as r rises, z falls smoothly and
+  // continuously along that single curve, all the way to the end.
   const HIENLUAN_BURST_BREAKS = [0.0, 0.18, 0.34, 0.55, 0.78, 1.0];
-  // Cylindrical radius: rise/shoulder/peak restored to full size; descent
-  // keyframes (last 3) trace the Bubble's own sphere surface (see note).
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.22, 0.55, 1.20, 1.55, 1.75];
-  // Height: rise/shoulder/peak restored to full size (+0.55, +0.95);
-  // descent keyframes (last 3) computed from r^2+z^2=Reff^2 using the same
-  // Reff as the peak point -- the simplest possible sphere-hugging curve.
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.55, TIP_Z+0.95, TIP_Z+0.4854, TIP_Z+0.0325, TIP_Z-0.2135];
-  // Extra azimuthal curl (radians): gentle, near-linear increase totaling
-  // only ~0.6 rad (~34 degrees) across the whole path -- a soft curl, not
-  // an aggressive spiral.
-  const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.05, 0.15, 0.30, 0.46, 0.60];
+  // Cylindrical radius: steep narrow climb off the crown (still off-
+  // sphere, like an apple's stem/shoulder), then from the peak onward
+  // every keyframe increases monotonically toward the Bubble's inner
+  // surface, ending at 1.65.
+  const HIENLUAN_BURST_R_KEYS = [0.0, 0.22, 0.55, 0.90, 1.20, 1.65];
+  // Height: steep climb up to a LESS pronounced peak (+0.50, down from
+  // +0.95) -- then every remaining keyframe (including the peak itself)
+  // sits exactly on the r^2+z^2=1.75^2 sphere, so the descent is one
+  // simple, continuous curve tracing the Bubble's own surface, ending
+  // just below crown height.
+  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.55, TIP_Z+0.50, TIP_Z+0.2790, TIP_Z-0.0161, TIP_Z-0.3921];
+  // Azimuthal curl -- REMOVED (all zero): no spiral/twist at all, each
+  // ray keeps its own fixed, evenly-spaced starting heading throughout.
+  const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
   function computeFiniteDiffTangents(keys, breaks){
     const n = keys.length;
     const m = new Array(n);
