@@ -1388,7 +1388,10 @@ function buildLotusSequenceAnimation(root){
   // to its compass target, so "growth" is revealed by toggling segment
   // visibility (no per-frame geometry rebuilds needed).
   const STEM_SEGMENTS = 14;
-  const stemMat = new THREE.MeshStandardMaterial({ color:0x2e7d32, roughness:0.6, metalness:0.05 });
+  // Per request: stem made SMALLER (thinner cylinders) and a darker,
+  // earthier green/brown color (was a bright, pure green 0x2e7d32) --
+  // 0x3a3420 is a dark, muted olive-brown, more like a woody/aged stem.
+  const stemMat = new THREE.MeshStandardMaterial({ color:0x3a3420, roughness:0.65, metalness:0.05 });
   // Winds each stem's growth path spirally around the scene's central
   // vertical (Z) axis (like a vine circling the Buddha's own centerline as
   // it climbs), rather than twisting around its own local YA -> flower
@@ -1427,7 +1430,7 @@ function buildLotusSequenceAnimation(root){
       const a = points[i], b = points[i+1];
       const dir = new THREE.Vector3().subVectors(b, a);
       const len = dir.length() || 0.001;
-      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, len, 8), stemMat);
+      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, len, 8), stemMat); // thinner (smaller) stem, was 0.018/0.022
       cyl.position.copy(a).addScaledVector(dir, 0.5);
       cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
       cyl.visible = false;
