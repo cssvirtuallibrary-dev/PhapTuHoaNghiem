@@ -1689,44 +1689,51 @@ function buildHienLuanAnimation(root, colorHex){
   // used to gate each section's staged reveal below.
   function sectionIndexOf(s){ return s < S1 ? 0 : (s < S2 ? 1 : 2); }
 
-  // ---- Section 3 shape: DIFFERENT APPROACH per feedback -- instead of
-  // trying to force one single spline (or several hand-picked segments)
-  // through the whole path, the ray is now built from exactly TWO
-  // deliberately different, analytically-defined phases that meet at one
-  // shared point (so there's no gap, even though their curve FORMULAS are
-  // different):
-  //   RISE phase (p: 0 -> RISE_FRACTION): a true parabola z(r), the same
-  //     shape as the "parabolic arch" reference -- steep where it leaves
-  //     the single center point, flattening out smoothly as it reaches
-  //     its apex (horizontal tangent at the peak, just like the flat top
-  //     of a parabolic arch).
-  //   FALL phase (p: RISE_FRACTION -> 1): simply travels along a circle
-  //     of radius FALL_SPHERE_R (i.e. the ray slides along a slightly
-  //     smaller radius than the Bubble's own inner wall) -- the simplest
-  //     possible "follow the inner bubble" path, exactly as requested.
-  // FALL_SPHERE_R is computed directly from the peak point itself, so the
-  // two phases always meet at exactly the same point with no gap.
-  const HIENLUAN_PEAK_R = 0.55;      // radius (from the central axis) at the top of the parabolic rise
-  const HIENLUAN_PEAK_Z = TIP_Z + 0.85; // height at the top of the parabolic rise
+  // ---- Section 3 shape: two-phase parabola-then-circle design, now with
+  // a SMOOTH (slope-matched) hand-off at the peak to remove the small
+  // visible break/kink that was there before. Previously the parabola
+  // was vertex-form (forced to be perfectly horizontal exactly at the
+  // peak), but the circle's own slope at that same point is NOT
+  // horizontal (only the very top of a circle, at r=0, has zero slope --
+  // and our peak sits at r=HIENLUAN_PEAK_R > 0) -- so the two curves met
+  // at slightly different angles, reading as a small kink.
+  // Fix: solve for a GENERAL parabola z = TIP_Z + B*r + A*r^2 whose value
+  // AND slope at r=HIENLUAN_PEAK_R are made to match the circle's value
+  // and slope there exactly (dz/dr = -r/z on a circle). That keeps the
+  // rise still steep near the center (its slope at r=0 is B, still a
+  // large, steep number) and still rounds over gently near the top --
+  // but now the parabola's tangent direction AT the peak exactly equals
+  // the circle's tangent direction there, so the hand-off into the FALL
+  // phase is perfectly smooth (continuous first derivative), not just
+  // continuous in position.
+  const HIENLUAN_PEAK_R = 0.55;      // radius (from the central axis) at the hand-off point between rise and fall
+  const HIENLUAN_PEAK_Z = TIP_Z + 0.85; // height at the hand-off point
   // Circle/sphere radius the FALL phase slides along -- passes exactly
   // through the peak point, and is comfortably smaller than the Bubble's
   // own inner wall (BUBBLE_R=2.1, safe limit ~2.07).
   const HIENLUAN_FALL_SPHERE_R = Math.sqrt(HIENLUAN_PEAK_R*HIENLUAN_PEAK_R + HIENLUAN_PEAK_Z*HIENLUAN_PEAK_Z);
+  // Circle's own slope (dz/dr) at the peak point -- the target slope the
+  // parabola must also have there, for a seamless hand-off.
+  const HIENLUAN_PEAK_SLOPE = -HIENLUAN_PEAK_R / HIENLUAN_PEAK_Z;
+  // Solve A, B for z(r) = TIP_Z + B*r + A*r^2 such that z(Rp)=Zp and
+  // dz/dr(Rp) = HIENLUAN_PEAK_SLOPE (see derivation in comments above).
+  const HIENLUAN_RISE_H = HIENLUAN_PEAK_Z - TIP_Z;
+  const HIENLUAN_RISE_A = (HIENLUAN_PEAK_SLOPE*HIENLUAN_PEAK_R - HIENLUAN_RISE_H) / (HIENLUAN_PEAK_R*HIENLUAN_PEAK_R);
+  const HIENLUAN_RISE_B = HIENLUAN_PEAK_SLOPE - 2*HIENLUAN_RISE_A*HIENLUAN_PEAK_R;
   const HIENLUAN_RISE_FRACTION = 0.40; // fraction of the ray's travel-time spent in the parabolic rise
   const HIENLUAN_END_R = 1.80; // how far out (from the axis) the fall phase travels before stopping
   // Given overall progress p (0..1) along the ray, returns {r, z} for
   // Section 3's two-phase shape.
   function hienluanBurstShape(p){
     if (p <= HIENLUAN_RISE_FRACTION){
-      // RISE: true parabola z(r) = TIP_Z + H*(1-((Rp-r)/Rp)^2), traced by
+      // RISE: general parabola z(r) = TIP_Z + B*r + A*r^2, traced by
       // moving r linearly from 0 to Rp as p goes from 0 to RISE_FRACTION.
-      // This starts steep at r=0 (leaving the single center point) and
-      // flattens to a horizontal tangent exactly at the peak (r=Rp) --
-      // the classic parabolic-arch profile.
+      // Steep near r=0 (leaving the single center point, slope=B), then
+      // rounds over gently, meeting the FALL phase's circle with the
+      // exact same slope at r=Rp (see derivation above) -- no kink.
       const w = p / HIENLUAN_RISE_FRACTION; // 0 -> 1
       const r = HIENLUAN_PEAK_R * w;
-      const H = HIENLUAN_PEAK_Z - TIP_Z;
-      const z = TIP_Z + H*(1 - (1-w)*(1-w));
+      const z = TIP_Z + HIENLUAN_RISE_B*r + HIENLUAN_RISE_A*r*r;
       return { r, z };
     } else {
       // FALL: slides along the HIENLUAN_FALL_SPHERE_R circle -- the
