@@ -1195,6 +1195,26 @@ function makeSiddhamSprite(key, worldHeight){
   return sprite;
 }
 
+// ---- Standardized Siddham glyph marker sphere -----------------------
+// Per request: every animation that displays a Siddham glyph now shows it
+// centered inside a sphere, and that sphere's SIZE and COLOR are the same
+// everywhere, so the glyphs read consistently and clearly across the whole
+// experience. The one exception is +EGO_SEQUENCE, which explicitly calls
+// for its own two sphere colors (orange for BA, green for DA) and is left
+// untouched.
+const GLYPH_MARKER_RADIUS = 0.17;   // matches the +EGO_SEQUENCE marker sphere's size
+const GLYPH_MARKER_COLOR  = 0xffc107; // neutral warm gold/amber -- complements the gold glyph artwork without competing with it
+function makeStandardGlyphMarkerSphere(){
+  const color = new THREE.Color(GLYPH_MARKER_COLOR);
+  // depthWrite:false -- so this translucent marker sphere never blocks the
+  // glyph sprite sitting at its exact center (the sprite itself is also
+  // forced to depthTest:false + a high renderOrder wherever it's used).
+  const mat = new THREE.MeshPhysicalMaterial({ color, emissive:color, emissiveIntensity:0.5, roughness:0.3, metalness:0.15, transparent:true, opacity:0, depthWrite:false });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(GLYPH_MARKER_RADIUS, 28, 28), mat);
+  const light = new THREE.PointLight(color.getHex(), 0, 1.8);
+  return { mesh, mat, light };
+}
+
 // Hoa Sen.stl — the lotus flower model, hosted in the same folder as
 // index.html. Loaded once and cached (centered on its own origin, scaled to
 // a consistent world-space diameter, reoriented so it "faces" scene +Z) so
@@ -1344,10 +1364,15 @@ function buildLotusSequenceAnimation(root){
   const group = new THREE.Group();
   root.add(group);
 
-  // Siddham glyphs
+  // Siddham glyphs -- each now placed inside a standardized marker sphere
+  // (same size/color as every other glyph in the experience, per request)
+  // for better visibility against the Bubble/Buddha behind it.
   const yaSprite = makeSiddhamSprite('YA', 0.204); yaSprite.position.copy(YA_POS); group.add(yaSprite); // ~40% smaller (was 0.34)
+  const yaMarker = makeStandardGlyphMarkerSphere(); yaMarker.mesh.position.copy(YA_POS); group.add(yaMarker.mesh); yaMarker.light.position.copy(YA_POS); group.add(yaMarker.light);
   const saSprite = makeSiddhamSprite('SA', 0.204); saSprite.position.copy(SA_POS); group.add(saSprite); // ~40% smaller (was 0.34)
+  const saMarker = makeStandardGlyphMarkerSphere(); saMarker.mesh.position.copy(SA_POS); group.add(saMarker.mesh); saMarker.light.position.copy(SA_POS); group.add(saMarker.light);
   const vaSprite = makeSiddhamSprite('VA', 0.18); vaSprite.position.copy(VA_POS); group.add(vaSprite); // ~40% smaller (was 0.30)
+  const vaMarker = makeStandardGlyphMarkerSphere(); vaMarker.mesh.position.copy(VA_POS); group.add(vaMarker.mesh); vaMarker.light.position.copy(VA_POS); group.add(vaMarker.light);
 
   // Single drop of water traveling SA -> YA (top to bottom), sculpted as a
   // proper falling-raindrop silhouette: a rounded, flattened leading belly
@@ -1477,8 +1502,12 @@ function buildLotusSequenceAnimation(root){
   function update(elapsedRaw){
     const t = elapsedRaw % CYCLE;
 
-    yaSprite.material.opacity = smooth(progressOf(t, T_YA_IN));
-    saSprite.material.opacity = smooth(progressOf(t, T_SA_IN));
+    const yaOpacity = smooth(progressOf(t, T_YA_IN));
+    yaSprite.material.opacity = yaOpacity;
+    yaMarker.mat.opacity = yaOpacity * 0.9; yaMarker.light.intensity = yaOpacity * 1.1;
+    const saOpacity = smooth(progressOf(t, T_SA_IN));
+    saSprite.material.opacity = saOpacity;
+    saMarker.mat.opacity = saOpacity * 0.9; saMarker.light.intensity = saOpacity * 1.1;
 
     const dp = progressOf(t, T_DROP);
     const dropActive = t >= T_DROP[0] && t <= T_DROP[1] + 0.15;
@@ -1520,7 +1549,9 @@ function buildLotusSequenceAnimation(root){
     mergedFlower.group.scale.setScalar(lerp(0.001, 1, mbp));
     mergedFlower.setBloom(mbp);
 
-    vaSprite.material.opacity = smooth(progressOf(t, T_VA_IN));
+    const vaOpacity = smooth(progressOf(t, T_VA_IN));
+    vaSprite.material.opacity = vaOpacity;
+    vaMarker.mat.opacity = vaOpacity * 0.9; vaMarker.light.intensity = vaOpacity * 1.1;
   }
   update(0);
 
@@ -1559,11 +1590,17 @@ function buildHienLuanAnimation(root, colorHex){
   root.add(group);
 
   // Siddham SCA glyph at the Buddha's heart-origin, sized to match the
-  // +LOTUS_SEQUENCE glyphs.
+  // +LOTUS_SEQUENCE glyphs -- now placed inside the same standardized
+  // marker sphere used everywhere else, for better visibility.
   const scaSprite = makeSiddhamSprite('SCA', 0.204);
   scaSprite.position.set(0, 0, 0);
   scaSprite.material.opacity = 0;
   group.add(scaSprite);
+  const scaMarker = makeStandardGlyphMarkerSphere();
+  scaMarker.mesh.position.set(0, 0, 0);
+  scaMarker.light.position.set(0, 0, 0);
+  group.add(scaMarker.mesh);
+  group.add(scaMarker.light);
 
   // ---- Step 8: starting ~10s in, over 5 seconds the UPPER half of the
   // (ever-present, holdOpen) Bubble of Ego slowly turns whiter -- like a
@@ -1958,7 +1995,9 @@ function buildHienLuanAnimation(root, colorHex){
 
     // SCA glyph fades in at the very start of every loop, at the exact
     // heart-origin (0,0,0).
-    scaSprite.material.opacity = smooth(clamp01(t/SCA_FADE_DURATION));
+    const scaOpacity = smooth(clamp01(t/SCA_FADE_DURATION));
+    scaSprite.material.opacity = scaOpacity;
+    scaMarker.mat.opacity = scaOpacity * 0.9; scaMarker.light.intensity = scaOpacity * 1.1;
 
     // Step 8: upper Bubble slowly turns whiter (light switching on) while
     // the lower Bubble's darkness fades into transparency -- both eased
