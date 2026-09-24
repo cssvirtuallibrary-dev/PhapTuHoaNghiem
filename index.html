@@ -1707,31 +1707,45 @@ function buildHienLuanAnimation(root, colorHex){
   //     center, curves smoothly toward one side, and continues outward
   //     all the way to the edge of the circular field -- ending out at
   //     the rim, NOT looping back toward the center.
-  // Spiral REMOVED entirely per request (theta keys below are now all
-  // zero -- rays keep their own fixed, evenly-spaced heading the whole
-  // time, no twist at all). The peak was also made LESS pronounced
-  // (shoulder rise now tops out around TIP_Z+0.50 instead of +0.95) so
-  // that from the peak onward, EVERY remaining keyframe (peak included)
-  // lies on the exact same single sphere (r^2 + z^2 = Reff^2, Reff=1.75,
-  // matching the ray's final reach) -- meaning the whole post-shoulder
-  // portion of the path is nothing more than one simple, natural arc
-  // sliding along the Bubble's own inner curve, with no separate
-  // "peak then descend" bend at all: as r rises, z falls smoothly and
-  // continuously along that single curve, all the way to the end.
-  const HIENLUAN_BURST_BREAKS = [0.0, 0.18, 0.34, 0.55, 0.78, 1.0];
-  // Cylindrical radius: steep narrow climb off the crown (still off-
-  // sphere, like an apple's stem/shoulder), then from the peak onward
-  // every keyframe increases monotonically toward the Bubble's inner
-  // surface, ending at 1.65.
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.22, 0.55, 0.90, 1.20, 1.65];
-  // Height: steep climb up to a LESS pronounced peak (+0.50, down from
-  // +0.95) -- then every remaining keyframe (including the peak itself)
-  // sits exactly on the r^2+z^2=1.75^2 sphere, so the descent is one
-  // simple, continuous curve tracing the Bubble's own surface, ending
-  // just below crown height.
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.55, TIP_Z+0.50, TIP_Z+0.2790, TIP_Z-0.0161, TIP_Z-0.3921];
-  // Azimuthal curl -- REMOVED (all zero): no spiral/twist at all, each
-  // ray keeps its own fixed, evenly-spaced starting heading throughout.
+  // REDESIGNED per the 3-part markup (RED / BLUE / YELLOW). The whole
+  // path is still ONE continuous Hermite spline (shared tangents at every
+  // breakpoint => no sharp corners anywhere), but its 6 keyframes are now
+  // explicitly grouped into 3 named parts:
+  //   RED   (breaks[0]->breaks[1]): comes out of the single center point
+  //     and rises up while staying CLOSE TO THE AXIS -- radius grows only
+  //     a little (0 -> 0.18) while height climbs steeply.
+  //   BLUE  (breaks[1]->breaks[3]): the connector between the top of RED
+  //     and the start of YELLOW. Its middle keyframe is the highest point
+  //     of the whole path (a gentle bump, not a sharp peak) -- chosen so
+  //     the curve into and out of it stays smooth/gentle rather than
+  //     making a sharp turn. The exact end of RED / start of YELLOW were
+  //     left flexible (per your note) specifically to let this BLUE
+  //     stretch curve gently instead of snapping to a fixed angle.
+  //   YELLOW(breaks[3]->breaks[5]): follows the Bubble's own inner
+  //     surface as closely as possible -- all 3 of its keyframes
+  //     (start/mid/end) sit EXACTLY on the same sphere of radius
+  //     YELLOW_SPHERE_R=1.95 (safely under BUBBLE_R*0.985 ~= 2.07), so
+  //     the curve hugs the Bubble's profile the whole way. Its ending
+  //     height comes out to TIP_Z+0.0, matching RED's starting height
+  //     (TIP_Z) -- exactly the "dashed purple line" relationship shown
+  //     in the markup.
+  const HIENLUAN_BURST_BREAKS = [0.0, 0.15, 0.30, 0.45, 0.70, 1.0];
+  // Keyframe 0 (r=0, z=TIP_Z): RED start -- the single center point.
+  // Keyframe 1 (r=0.18, z=TIP_Z+0.55): top of RED / start of BLUE --
+  //   still very close to the axis.
+  // Keyframe 2 (r=0.22, z=TIP_Z+1.00): BLUE's high, gentle bump -- the
+  //   tallest point of the whole path, still safely inside the Bubble.
+  // Keyframe 3 (r=0.35, z=TIP_Z+0.9183): start of YELLOW -- placed
+  //   exactly on the YELLOW_SPHERE_R=1.95 sphere.
+  // Keyframe 4 (r=1.00, z=TIP_Z+0.6737): YELLOW midpoint -- also exactly
+  //   on that same sphere, following the Bubble's curvature closely.
+  // Keyframe 5 (r=1.6730, z=TIP_Z+0.0): end of YELLOW -- also on that
+  //   same sphere, and its height matches RED's starting height (TIP_Z).
+  const HIENLUAN_BURST_R_KEYS = [0.0, 0.18, 0.22, 0.35, 1.00, 1.6730];
+  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.55, TIP_Z+1.00, TIP_Z+0.9183, TIP_Z+0.6737, TIP_Z+0.0];
+  // Azimuthal curl -- kept at zero (no spiral), matching the most recent
+  // confirmed direction; each ray keeps its own fixed, evenly-spaced
+  // starting heading (seed.umbrellaAzimuth) throughout.
   const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
   function computeFiniteDiffTangents(keys, breaks){
     const n = keys.length;
