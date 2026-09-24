@@ -1707,45 +1707,26 @@ function buildHienLuanAnimation(root, colorHex){
   //     center, curves smoothly toward one side, and continues outward
   //     all the way to the edge of the circular field -- ending out at
   //     the rim, NOT looping back toward the center.
-  // Vertical profile (r,z) reshaped once more, per feedback: the rise and
-  // rounded peak (steep, narrow "apple shoulder" climbing off the crown
-  // into a tight apex) are KEPT exactly as confirmed-good -- only the
-  // DESCENT after the peak changes. Instead of dropping away in a
-  // straight-ish, steep line, the descent keyframes are now placed so
-  // they sit almost exactly on the Bubble's own inner sphere surface
-  // (i.e. approximately r^2 + z^2 = constant, matching a sphere centered
-  // at the Bubble's true center) -- so the ray's cascade visually hugs
-  // the inside curvature of the Bubble itself: nearly flat/gentle just
-  // after the peak (where a sphere's surface is nearly horizontal near
-  // its top), gradually curving downward more as it travels outward
-  // (where the sphere's surface naturally steepens) -- rather than one
-  // uniform steep drop. This also intentionally SHORTENS the tail (final
-  // radius pulled in from 1.90 to 1.75, final height only slightly below
-  // crown rather than well below it) specifically so the azimuthal
-  // curl/spiral (theta, unchanged below) still has a clearly visible,
-  // proportionate arc to sweep through relative to the shortened cascade,
-  // instead of a long straight tail overwhelming the spiral. R stays
-  // STRICTLY monotonic (0 -> 1.75, never reversing) and rays still
-  // diverge early rather than bundling.
+  // Overall ray SHORTENED by ~30% per feedback: every R keyframe and every
+  // Z keyframe's offset from the crown (TIP_Z) is scaled down by 0.7x, so
+  // the whole apple-shoulder-rise + Bubble-hugging-descent SHAPE is
+  // preserved exactly (same relative proportions/curvature throughout),
+  // just at 70% of its previous physical size -- the ray now reaches out
+  // to only ~1.23 (down from ~1.75) and rises/descends proportionally
+  // less too. The azimuthal curl (theta) is also scaled down by the same
+  // 0.7x, so the spiral winds proportionally less over the now-shorter
+  // ray -- keeping the same visual "tightness" of the spiral per unit of
+  // ray length, rather than cramming the old full spiral onto a shorter
+  // path (which would have made it look over-twisted).
   const HIENLUAN_BURST_BREAKS = [0.0, 0.18, 0.34, 0.55, 0.78, 1.0];
-  // Cylindrical radius: rises only a little through the steep early climb
-  // (staying narrow, like an apple's stem/shoulder), rounds over at the
-  // peak, then the descent keyframes (last 3 values) advance toward the
-  // Bubble's inner surface -- but pulled in to 1.75 (short of the prior
-  // 1.90) to keep the tail short, per note above.
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.22, 0.55, 1.20, 1.55, 1.75];
-  // Height: the same STEEP, narrow climb straight off the crown (+0.55)
-  // up to the same tight, rounded apex (+0.95) as before -- UNCHANGED.
-  // The descent keyframes (last 3 values) are now chosen to sit on the
-  // Bubble's own inner-sphere curve (approximately constant r^2+z^2),
-  // which naturally produces a gentle, gradually-steepening drop that
-  // hugs the dome's true shape -- ending only modestly below crown
-  // height (-0.14) instead of a long, steep plunge (-0.75 previously).
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.55, TIP_Z+0.95, TIP_Z+0.54, TIP_Z+0.18, TIP_Z-0.14];
-  // Extra azimuthal curl (radians) -- UNCHANGED, since the rotation/spiral
-  // dispersion was already confirmed correct. Added on top of each ray's
-  // own fixed, evenly-spaced starting heading (seed.umbrellaAzimuth).
-  const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.02, 0.25, 0.85, 1.55, 2.1];
+  // Cylindrical radius -- previous keys x0.7.
+  const HIENLUAN_BURST_R_KEYS = [0.0, 0.15, 0.39, 0.84, 1.09, 1.23];
+  // Height -- previous OFFSETS from TIP_Z x0.7 (peak/shoulder shape and
+  // Bubble-hugging descent curvature preserved, just scaled down).
+  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.39, TIP_Z+0.67, TIP_Z+0.38, TIP_Z+0.13, TIP_Z-0.10];
+  // Extra azimuthal curl (radians) -- previous keys x0.7 (less spiral,
+  // scaled down to match the shorter ray).
+  const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.01, 0.18, 0.60, 1.09, 1.47];
   function computeFiniteDiffTangents(keys, breaks){
     const n = keys.length;
     const m = new Array(n);
