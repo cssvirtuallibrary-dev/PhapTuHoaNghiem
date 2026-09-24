@@ -1689,78 +1689,56 @@ function buildHienLuanAnimation(root, colorHex){
   // used to gate each section's staged reveal below.
   function sectionIndexOf(s){ return s < S1 ? 0 : (s < S2 ? 1 : 2); }
 
-  // ---- Shared cubic-Hermite spline helper + Section 3 burst keyframes.
-  // Standard Hermite basis (h00,h10,h01,h11) evaluated per-segment with a
-  // LOCAL u in [0,1]. Tangents at every interior keyframe are computed
-  // automatically with a finite-difference (Catmull-Rom-style) formula --
-  // m[i] = (key[i+1]-key[i-1]) / (t[i+1]-t[i-1]) -- which guarantees the
-  // curve's direction matches exactly on both sides of every keyframe, so
-  // the whole path is ONE smooth, continuous line, not separate pieces
-  // glued together.
-  //
-  // Section 3 shape, built fresh from the side-view + top-view reference
-  // markups (NOT an incremental tweak of any earlier version):
-  //   SIDE VIEW: a single broad rising arch -- the ray lifts off from the
-  //     crown, arcs up and outward to a peak, then comes back down toward
-  //     the Bubble's outer edge. No inward hook/loop at the end.
-  //   TOP VIEW: viewed from directly above, the ray starts right at the
-  //     center, curves smoothly toward one side, and continues outward
-  //     all the way to the edge of the circular field -- ending out at
-  //     the rim, NOT looping back toward the center.
-  // COMPLETELY REBUILT per the water-fountain reference photo: the prior
-  // 3-part RED/BLUE/YELLOW design (6 keyframes forcing a tight axis-
-  // hugging climb, then a separate bump, then a separate sphere-fit
-  // sweep) produced visibly bad curvature -- distinct changes in
-  // curve "character" at each hand-off, unlike a real fountain jet.
-  // A real fountain stream is a single, smooth, unbroken parabolic-like
-  // arc: it leaves the nozzle, rises, gently curves over at the top, and
-  // falls back down in ONE continuous sweep -- with no separate segments
-  // or hand-offs at all. To match that, this is now just a SINGLE simple
-  // 2-segment Catmull-Rom curve built from only 3 keyframes (start, peak,
-  // end) -- the minimum needed to define one graceful up-and-over arc.
-  // With only 3 points and natural (one-sided) end tangents, the curve
-  // has one smooth, continuously-changing curvature throughout, exactly
-  // like a real jet of water -- not a shape assembled from parts.
-  const HIENLUAN_BURST_BREAKS = [0.0, 0.45, 1.0];
-  // Keyframe 0: the single center point (nozzle) -- r=0, z=TIP_Z.
-  // Keyframe 1: the peak of the arc -- r=0.85, z=TIP_Z+0.75 (safely
-  //   inside the Bubble: sqrt(0.85^2+1.75^2)=1.945 < BUBBLE_R*0.985).
-  // Keyframe 2: where the stream reaches down near the Bubble's inner
-  //   wall -- r=1.70, z=TIP_Z-0.15 (sqrt(1.70^2+0.85^2)=1.90, close to
-  //   the wall without poking through it), roughly following the
-  //   Bubble's curvature the way a real fountain stream falls along the
-  //   inside of a basin.
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.85, 1.70];
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.75, TIP_Z-0.15];
-  // Azimuthal curl -- kept at zero (no spiral), matching the most recent
-  // confirmed direction; each ray keeps its own fixed, evenly-spaced
-  // starting heading (seed.umbrellaAzimuth) throughout.
-  const HIENLUAN_BURST_THETA_KEYS = [0.0, 0.0, 0.0];
-  function computeFiniteDiffTangents(keys, breaks){
-    const n = keys.length;
-    const m = new Array(n);
-    m[0] = (keys[1]-keys[0]) / (breaks[1]-breaks[0]);
-    m[n-1] = (keys[n-1]-keys[n-2]) / (breaks[n-1]-breaks[n-2]);
-    for (let i=1;i<n-1;i++){ m[i] = (keys[i+1]-keys[i-1]) / (breaks[i+1]-breaks[i-1]); }
-    return m;
-  }
-  const HIENLUAN_BURST_R_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_BREAKS);
-  const HIENLUAN_BURST_Z_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_BREAKS);
-  const HIENLUAN_BURST_THETA_TANGENTS = computeFiniteDiffTangents(HIENLUAN_BURST_THETA_KEYS, HIENLUAN_BURST_BREAKS);
-  function hermiteSpline1D(keys, tangents, breaks, p){
-    const n = breaks.length - 1;
-    let segIdx = n - 1;
-    for (let i=0;i<n;i++){ if (p <= breaks[i+1]) { segIdx = i; break; } }
-    const p0 = keys[segIdx], p1 = keys[segIdx+1];
-    const m0 = tangents[segIdx], m1 = tangents[segIdx+1];
-    const dt = breaks[segIdx+1] - breaks[segIdx];
-    const u = Math.max(0, Math.min(1, (p - breaks[segIdx]) / dt));
-    const u2 = u*u, u3 = u2*u;
-    const h00 = 2*u3 - 3*u2 + 1;
-    const h10 = u3 - 2*u2 + u;
-    const h01 = -2*u3 + 3*u2;
-    const h11 = u3 - u2;
-    return h00*p0 + h10*dt*m0 + h01*p1 + h11*dt*m1;
+  // ---- Section 3 shape: DIFFERENT APPROACH per feedback -- instead of
+  // trying to force one single spline (or several hand-picked segments)
+  // through the whole path, the ray is now built from exactly TWO
+  // deliberately different, analytically-defined phases that meet at one
+  // shared point (so there's no gap, even though their curve FORMULAS are
+  // different):
+  //   RISE phase (p: 0 -> RISE_FRACTION): a true parabola z(r), the same
+  //     shape as the "parabolic arch" reference -- steep where it leaves
+  //     the single center point, flattening out smoothly as it reaches
+  //     its apex (horizontal tangent at the peak, just like the flat top
+  //     of a parabolic arch).
+  //   FALL phase (p: RISE_FRACTION -> 1): simply travels along a circle
+  //     of radius FALL_SPHERE_R (i.e. the ray slides along a slightly
+  //     smaller radius than the Bubble's own inner wall) -- the simplest
+  //     possible "follow the inner bubble" path, exactly as requested.
+  // FALL_SPHERE_R is computed directly from the peak point itself, so the
+  // two phases always meet at exactly the same point with no gap.
+  const HIENLUAN_PEAK_R = 0.55;      // radius (from the central axis) at the top of the parabolic rise
+  const HIENLUAN_PEAK_Z = TIP_Z + 0.85; // height at the top of the parabolic rise
+  // Circle/sphere radius the FALL phase slides along -- passes exactly
+  // through the peak point, and is comfortably smaller than the Bubble's
+  // own inner wall (BUBBLE_R=2.1, safe limit ~2.07).
+  const HIENLUAN_FALL_SPHERE_R = Math.sqrt(HIENLUAN_PEAK_R*HIENLUAN_PEAK_R + HIENLUAN_PEAK_Z*HIENLUAN_PEAK_Z);
+  const HIENLUAN_RISE_FRACTION = 0.40; // fraction of the ray's travel-time spent in the parabolic rise
+  const HIENLUAN_END_R = 1.80; // how far out (from the axis) the fall phase travels before stopping
+  // Given overall progress p (0..1) along the ray, returns {r, z} for
+  // Section 3's two-phase shape.
+  function hienluanBurstShape(p){
+    if (p <= HIENLUAN_RISE_FRACTION){
+      // RISE: true parabola z(r) = TIP_Z + H*(1-((Rp-r)/Rp)^2), traced by
+      // moving r linearly from 0 to Rp as p goes from 0 to RISE_FRACTION.
+      // This starts steep at r=0 (leaving the single center point) and
+      // flattens to a horizontal tangent exactly at the peak (r=Rp) --
+      // the classic parabolic-arch profile.
+      const w = p / HIENLUAN_RISE_FRACTION; // 0 -> 1
+      const r = HIENLUAN_PEAK_R * w;
+      const H = HIENLUAN_PEAK_Z - TIP_Z;
+      const z = TIP_Z + H*(1 - (1-w)*(1-w));
+      return { r, z };
+    } else {
+      // FALL: slides along the HIENLUAN_FALL_SPHERE_R circle -- the
+      // simplest possible "follow the inner bubble, at a slightly smaller
+      // radius" path. r increases linearly from the peak's radius out to
+      // HIENLUAN_END_R, and z is whatever keeps (r,z) exactly on that
+      // circle.
+      const w = (p - HIENLUAN_RISE_FRACTION) / (1 - HIENLUAN_RISE_FRACTION); // 0 -> 1
+      const r = HIENLUAN_PEAK_R + (HIENLUAN_END_R - HIENLUAN_PEAK_R) * w;
+      const z = Math.sqrt(Math.max(0, HIENLUAN_FALL_SPHERE_R*HIENLUAN_FALL_SPHERE_R - r*r));
+      return { r, z };
+    }
   }
 
   function energyPointAt(s, seed, outVec){
@@ -1809,13 +1787,11 @@ function buildHienLuanAnimation(root, colorHex){
       // curving to one side along the way, exactly like the top-view
       // markup -- and never loops back toward the center.
       const p = (s-S2)/(1-S2);
-      const r = hermiteSpline1D(HIENLUAN_BURST_R_KEYS, HIENLUAN_BURST_R_TANGENTS, HIENLUAN_BURST_BREAKS, p);
-      const zSpline = hermiteSpline1D(HIENLUAN_BURST_Z_KEYS, HIENLUAN_BURST_Z_TANGENTS, HIENLUAN_BURST_BREAKS, p);
-      const thetaOffset = hermiteSpline1D(HIENLUAN_BURST_THETA_KEYS, HIENLUAN_BURST_THETA_TANGENTS, HIENLUAN_BURST_BREAKS, p);
-      const finalAngle = seed.umbrellaAzimuth + thetaOffset;
-      x = Math.max(0, r)*Math.cos(finalAngle);
-      y = Math.max(0, r)*Math.sin(finalAngle);
-      z = zSpline;
+      const shape = hienluanBurstShape(p);
+      const finalAngle = seed.umbrellaAzimuth; // no spiral -- fixed heading per ray
+      x = Math.max(0, shape.r)*Math.cos(finalAngle);
+      y = Math.max(0, shape.r)*Math.sin(finalAngle);
+      z = shape.z;
     }
     outVec.set(x, y, z);
   }
