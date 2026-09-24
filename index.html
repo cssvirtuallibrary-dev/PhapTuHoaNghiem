@@ -1707,30 +1707,41 @@ function buildHienLuanAnimation(root, colorHex){
   //     center, curves smoothly toward one side, and continues outward
   //     all the way to the edge of the circular field -- ending out at
   //     the rim, NOT looping back toward the center.
-  // Vertical profile (r,z) reshaped once more, per feedback: the rotation/
-  // spiral (theta) was already correct and is left completely untouched --
-  // only the RISE-AND-CASCADE shape changes, to read like the top of an
-  // apple: a narrow, STEEP shoulder that climbs quickly close to the
-  // central stem, rounds over into a tight, rounded peak (not a wide,
-  // shallow bump), then drops away steeply just past the peak -- exactly
-  // like an apple's shoulder curving down from the stem toward its
-  // widest point -- before finally leveling off gently for the remaining
-  // outward stretch. R stays STRICTLY monotonic (0 -> ~1.90, never
-  // reversing) and rays still diverge early rather than bundling, so the
-  // already-confirmed-correct top-view spiral is fully preserved.
-  const HIENLUAN_BURST_BREAKS = [0.0, 0.18, 0.34, 0.52, 0.72, 1.0];
+  // Vertical profile (r,z) reshaped once more, per feedback: the rise and
+  // rounded peak (steep, narrow "apple shoulder" climbing off the crown
+  // into a tight apex) are KEPT exactly as confirmed-good -- only the
+  // DESCENT after the peak changes. Instead of dropping away in a
+  // straight-ish, steep line, the descent keyframes are now placed so
+  // they sit almost exactly on the Bubble's own inner sphere surface
+  // (i.e. approximately r^2 + z^2 = constant, matching a sphere centered
+  // at the Bubble's true center) -- so the ray's cascade visually hugs
+  // the inside curvature of the Bubble itself: nearly flat/gentle just
+  // after the peak (where a sphere's surface is nearly horizontal near
+  // its top), gradually curving downward more as it travels outward
+  // (where the sphere's surface naturally steepens) -- rather than one
+  // uniform steep drop. This also intentionally SHORTENS the tail (final
+  // radius pulled in from 1.90 to 1.75, final height only slightly below
+  // crown rather than well below it) specifically so the azimuthal
+  // curl/spiral (theta, unchanged below) still has a clearly visible,
+  // proportionate arc to sweep through relative to the shortened cascade,
+  // instead of a long straight tail overwhelming the spiral. R stays
+  // STRICTLY monotonic (0 -> 1.75, never reversing) and rays still
+  // diverge early rather than bundling.
+  const HIENLUAN_BURST_BREAKS = [0.0, 0.18, 0.34, 0.55, 0.78, 1.0];
   // Cylindrical radius: rises only a little through the steep early climb
-  // (staying narrow, like an apple's stem/shoulder) then keeps expanding
-  // monotonically out to the Bubble's inner surface (~1.90, safely under
-  // BUBBLE_R*0.985 ~= 2.07).
-  const HIENLUAN_BURST_R_KEYS = [0.0, 0.22, 0.55, 1.05, 1.55, 1.90];
-  // Height: a STEEP, narrow climb straight off the crown (+0.55 while r is
-  // still small) up to a tight, rounded apex (+0.95, reached at a smaller
-  // radius than before -- this tightness is what reads as an apple's
-  // rounded shoulder rather than a wide, gentle arc) -- then drops away
-  // steeply right after the peak, and finally levels off gently for the
-  // remaining outward travel, ending just slightly below crown height.
-  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.55, TIP_Z+0.95, TIP_Z+0.25, TIP_Z-0.05, TIP_Z-0.12];
+  // (staying narrow, like an apple's stem/shoulder), rounds over at the
+  // peak, then the descent keyframes (last 3 values) advance toward the
+  // Bubble's inner surface -- but pulled in to 1.75 (short of the prior
+  // 1.90) to keep the tail short, per note above.
+  const HIENLUAN_BURST_R_KEYS = [0.0, 0.22, 0.55, 1.20, 1.55, 1.75];
+  // Height: the same STEEP, narrow climb straight off the crown (+0.55)
+  // up to the same tight, rounded apex (+0.95) as before -- UNCHANGED.
+  // The descent keyframes (last 3 values) are now chosen to sit on the
+  // Bubble's own inner-sphere curve (approximately constant r^2+z^2),
+  // which naturally produces a gentle, gradually-steepening drop that
+  // hugs the dome's true shape -- ending only modestly below crown
+  // height (-0.14) instead of a long, steep plunge (-0.75 previously).
+  const HIENLUAN_BURST_Z_KEYS = [TIP_Z, TIP_Z+0.55, TIP_Z+0.95, TIP_Z+0.54, TIP_Z+0.18, TIP_Z-0.14];
   // Extra azimuthal curl (radians) -- UNCHANGED, since the rotation/spiral
   // dispersion was already confirmed correct. Added on top of each ray's
   // own fixed, evenly-spaced starting heading (seed.umbrellaAzimuth).
